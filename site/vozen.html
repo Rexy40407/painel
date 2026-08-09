@@ -275,6 +275,15 @@
       td { padding: 11px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); color: var(--text-0); }
       td.mono, th.mono { font-family: var(--f-mono); }
       .tier { display: inline-block; padding: 3px 10px; border-radius: 999px; font-family: var(--f-mono); font-size: 11.5px; font-weight: 700; }
+      .profile { display: inline-flex; align-items: center; gap: 10px; min-width: 170px; }
+      .profile-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: var(--panel-2); border: 1px solid var(--line); flex: none; }
+      .profile-avatar--none { display: grid; place-items: center; color: var(--text-1); font-family: var(--f-mono); font-size: 12px; font-weight: 700; }
+      .profile-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+      .profile-name { color: var(--text-0); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+      .stripe-state { display: inline-flex; align-items: center; gap: 6px; color: var(--text-1); }
+      .stripe-state::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--aqua); box-shadow: 0 0 8px rgba(46, 230, 200, .6); }
+      .stripe-state[data-state='past_due']::before, .stripe-state[data-state='canceled']::before { background: var(--red); box-shadow: 0 0 8px rgba(255, 92, 114, .55); }
+      @media (max-width: 620px) { .profile { min-width: 145px; } .profile-name { max-width: 150px; } }
       .tier.plus { color: var(--aqua); background: rgba(46, 230, 200, 0.12); }
       .tier.premium { color: var(--amber); background: rgba(255, 194, 75, 0.12); }
       .revoke { padding: 6px 12px; border-radius: 9px; border: 1px solid rgba(255, 92, 114, 0.35); background: rgba(255, 92, 114, 0.1); color: var(--red); cursor: pointer; font-family: var(--f-body); font-size: 13px; font-weight: 600; }
@@ -505,7 +514,7 @@
           <div class="tblwrap">
             <table>
               <thead>
-                <tr><th>Tipo</th><th class="mono">Discord ID</th><th>Detalhe</th><th>Expira</th><th></th></tr>
+                <tr><th>Tipo</th><th>Cliente</th><th class="mono">Discord ID</th><th>Detalhe</th><th>Expira</th><th></th></tr>
               </thead>
               <tbody id="passesBody"></tbody>
             </table>
@@ -514,16 +523,16 @@
         </div>
 
         <div class="box">
-          <h2>Compras por reclamar</h2>
+          <h2>Últimas compras feitas</h2>
           <div class="tblwrap">
             <table>
               <thead>
-                <tr><th>Tipo</th><th>Dias</th><th class="mono">Transação</th><th>Criada</th></tr>
+                <tr><th>Plano</th><th>Cliente</th><th class="mono">Discord ID</th><th>Estado</th><th>Compra</th></tr>
               </thead>
-              <tbody id="pendingBody"></tbody>
+              <tbody id="purchasesBody"></tbody>
             </table>
           </div>
-          <div class="empty" id="pendingEmpty" style="display:none">Nada pendente.</div>
+          <div class="empty" id="purchasesEmpty" style="display:none">Ainda não existem compras Stripe.</div>
         </div>
       </div>
 
@@ -1334,6 +1343,42 @@
         });
       }
 
+      function profileCell(row) {
+        const td = document.createElement('td');
+        const wrap = document.createElement('div');
+        wrap.className = 'profile';
+        const label = row.username || ('Discord user ' + String(row.id).slice(-6));
+        if (row.avatar) {
+          const img = document.createElement('img');
+          img.className = 'profile-avatar';
+          img.src = row.avatar;
+          img.alt = '';
+          img.loading = 'lazy';
+          img.addEventListener('error', () => {
+            const fallback = document.createElement('span');
+            fallback.className = 'profile-avatar profile-avatar--none';
+            fallback.textContent = (label[0] || '?').toUpperCase();
+            img.replaceWith(fallback);
+          }, { once: true });
+          wrap.appendChild(img);
+        } else {
+          const fallback = document.createElement('span');
+          fallback.className = 'profile-avatar profile-avatar--none';
+          fallback.textContent = (label[0] || '?').toUpperCase();
+          wrap.appendChild(fallback);
+        }
+        const copy = document.createElement('span');
+        copy.className = 'profile-copy';
+        const name = document.createElement('span');
+        name.className = 'profile-name';
+        name.textContent = label;
+        if (row.username) name.title = row.id;
+        copy.appendChild(name);
+        wrap.appendChild(copy);
+        td.appendChild(wrap);
+        return td;
+      }
+
       async function loadPasses() {
         try {
           const d = await adminJson('/api/admin/passes');
@@ -1349,9 +1394,9 @@
         const body = $('passesBody');
         body.textContent = '';
         const rows = [];
-        for (const p of d.plus || []) rows.push({ kind: 'plus', id: p.userId, detail: '—', exp: p.expiresAt });
+        for (const p of d.plus || []) rows.push({ kind: 'plus', id: p.userId, username: p.username, avatar: p.avatar, detail: '—', exp: p.expiresAt });
         for (const p of d.passes || [])
-          rows.push({ kind: 'premium', id: p.userId, detail: p.used + '/' + p.seats + ' servidores', exp: p.expiresAt });
+          rows.push({ kind: 'premium', id: p.userId, username: p.username, avatar: p.avatar, detail: p.used + '/' + p.seats + ' servidores', exp: p.expiresAt });
         $('passesEmpty').style.display = rows.length ? 'none' : '';
         for (const row of rows) {
           const tr = document.createElement('tr');
@@ -1361,6 +1406,7 @@
           tier.textContent = row.kind === 'plus' ? 'Plus' : 'Premium';
           tierTd.appendChild(tier);
           tr.appendChild(tierTd);
+          tr.appendChild(profileCell(row));
           tr.appendChild(cell(row.id, 'mono'));
           tr.appendChild(cell(row.detail));
           tr.appendChild(cell(fmtDate(row.exp)));
@@ -1374,16 +1420,23 @@
           tr.appendChild(actTd);
           body.appendChild(tr);
         }
-        // Pendentes
-        const pb = $('pendingBody');
+        // Compras Stripe (a fonte de verdade de pagamentos atuais).
+        const pb = $('purchasesBody');
         pb.textContent = '';
-        const pend = d.pending || [];
-        $('pendingEmpty').style.display = pend.length ? 'none' : '';
-        for (const p of pend) {
+        const purchases = d.purchases || [];
+        $('purchasesEmpty').style.display = purchases.length ? 'none' : '';
+        for (const p of purchases) {
           const tr = document.createElement('tr');
           tr.appendChild(cell(p.plan === 'plus' ? 'Plus' : 'Premium'));
-          tr.appendChild(cell(String(p.days)));
-          tr.appendChild(cell(p.transactionId, 'mono'));
+          tr.appendChild(profileCell({ id: p.userId, username: p.username, avatar: p.avatar }));
+          tr.appendChild(cell(p.userId, 'mono'));
+          const state = document.createElement('td');
+          const stateLabel = document.createElement('span');
+          stateLabel.className = 'stripe-state';
+          stateLabel.dataset.state = p.status || 'active';
+          stateLabel.textContent = p.status === 'past_due' ? 'Pagamento pendente' : (p.status === 'canceled' ? 'Cancelada' : 'Ativa');
+          state.appendChild(stateLabel);
+          tr.appendChild(state);
           tr.appendChild(cell(fmtDate(p.createdAt)));
           pb.appendChild(tr);
         }
