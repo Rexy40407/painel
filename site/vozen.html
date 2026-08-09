@@ -298,6 +298,14 @@
       .gspeakers { display: flex; flex-wrap: wrap; gap: 8px; }
       .gspk { font-family: var(--f-mono); font-size: 12px; color: var(--text-1); background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; }
       .gspk b { color: var(--aqua); font-weight: 700; }
+      .server-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+      .server-pagination__status { color: var(--text-2); font-family: var(--f-mono); font-size: 11px; }
+      .server-pagination__controls { display: inline-flex; align-items: center; gap: 8px; }
+      .server-pagination__button { min-width: 78px; padding: 7px 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--text-1); background: rgba(255, 255, 255, 0.025); cursor: pointer; font: 600 12px var(--f-body); transition: color .16s ease, border-color .16s ease, opacity .16s ease; }
+      .server-pagination__button:hover:not(:disabled) { color: var(--aqua); border-color: rgba(46, 230, 200, .45); }
+      .server-pagination__button:focus-visible { outline: 2px solid var(--aqua); outline-offset: 2px; }
+      .server-pagination__button:disabled { cursor: not-allowed; opacity: .4; }
+      @media (max-width: 520px) { .server-pagination { align-items: flex-start; flex-direction: column; } }
       /* Servidores: tabela + cartão do top-10 lado a lado; empilha em ecrãs estreitos. */
       .servers-grid { display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 16px; align-items: start; }
       .servers-grid > .box { margin-bottom: 0; }
@@ -556,6 +564,13 @@
               </table>
             </div>
             <div class="empty" id="guildsEmpty" style="display:none">Sem servidores.</div>
+            <div class="server-pagination" id="guildsPagination" hidden>
+              <span class="server-pagination__status" id="guildsPaginationStatus" aria-live="polite"></span>
+              <span class="server-pagination__controls">
+                <button class="server-pagination__button" id="guildsPrevious" type="button">Anterior</button>
+                <button class="server-pagination__button" id="guildsNext" type="button">Seguinte</button>
+              </span>
+            </div>
             <p class="msg" id="guildsMsg"></p>
             <p class="soon" style="margin-top:14px;font-size:12.5px">Clica num servidor para ver quem mais escreveu.</p>
           </div>
@@ -606,6 +621,9 @@
       let sessionIdleTimer = null;
       let lastSessionTouch = 0;
       let metricsTimer = null;
+      const GUILDS_PER_PAGE = 25;
+      let guildRows = [];
+      let guildPage = 1;
 
       // Captura o token do fragmento (#access_token=…) após o redirect do OAuth e limpa o URL.
       (function () {
@@ -1159,7 +1177,9 @@
           msg.textContent = 'Erro de rede.';
           return;
         }
-        renderGuilds(d.guilds || []);
+        guildRows = Array.isArray(d.guilds) ? d.guilds : [];
+        guildPage = 1;
+        renderGuilds(guildRows);
         serversLoaded = true;
       }
 
@@ -1168,7 +1188,11 @@
         const body = $('guildsBody');
         body.textContent = '';
         $('guildsEmpty').style.display = guilds.length ? 'none' : '';
-        for (const g of guilds) {
+        const pageCount = Math.max(1, Math.ceil(guilds.length / GUILDS_PER_PAGE));
+        guildPage = Math.min(Math.max(1, guildPage), pageCount);
+        const start = (guildPage - 1) * GUILDS_PER_PAGE;
+        const visibleGuilds = guilds.slice(start, start + GUILDS_PER_PAGE);
+        for (const g of visibleGuilds) {
           const tr = document.createElement('tr');
           tr.className = 'grow';
           const nameTd = document.createElement('td');
@@ -1225,7 +1249,27 @@
             dtr.style.display = dtr.style.display === 'none' ? '' : 'none';
           });
         }
+        const pagination = $('guildsPagination');
+        const hasPagination = guilds.length > GUILDS_PER_PAGE;
+        pagination.hidden = !hasPagination;
+        if (hasPagination) {
+          $('guildsPaginationStatus').textContent = 'Página ' + guildPage + ' de ' + pageCount + ' · ' + GUILDS_PER_PAGE + ' servidores por página';
+          $('guildsPrevious').disabled = guildPage <= 1;
+          $('guildsNext').disabled = guildPage >= pageCount;
+        }
       }
+
+      $('guildsPrevious').addEventListener('click', () => {
+        if (guildPage <= 1) return;
+        guildPage -= 1;
+        renderGuilds(guildRows);
+      });
+      $('guildsNext').addEventListener('click', () => {
+        const pageCount = Math.max(1, Math.ceil(guildRows.length / GUILDS_PER_PAGE));
+        if (guildPage >= pageCount) return;
+        guildPage += 1;
+        renderGuilds(guildRows);
+      });
 
       // Mostrar/ocultar o campo "servidores" só para Premium (sincroniza também no arranque).
       const syncSeats = () => {
