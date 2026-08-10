@@ -1,0 +1,38 @@
+/* XP card layout patch. The published bundle predates the panel foundation
+ * stylesheet, so keep this override isolated and versioned at the page edge. */
+.editor-grid:has(.rank-preview) {
+  align-items: start;
+  grid-auto-rows: max-content;
+}
+
+.editor-grid:has(.rank-preview) > .preview-panel,
+.editor-grid:has(.rank-preview) > .controls {
+  align-self: start;
+  height: max-content;
+  min-height: 0;
+}
+
+.editor-grid:has(.rank-preview) .rank-preview {
+  min-height: 0;
+  aspect-ratio: 1.86 / 1;
+  max-height: 390px;
+  overflow: hidden;
+}
+
+@media (max-width: 1100px) {
+  .editor-grid:has(.rank-preview) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .editor-grid:has(.rank-preview) .rank-preview {
+    aspect-ratio: 1.72 / 1;
+    max-height: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .editor-grid:has(.rank-preview) .rank-preview {
+    aspect-ratio: auto;
+    min-height: 268px;
+  }
+}
