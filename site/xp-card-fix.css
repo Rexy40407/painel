@@ -19,6 +19,30 @@
   overflow: hidden;
 }
 
+/* ui-refresh gives every button a 44px minimum height for accessibility.
+ * The published bundle still gives swatches a 20px width, which turns them
+ * into vertical ovals. Keep the hit area and visual shape square. */
+.editor-grid:has(.rank-preview) .swatches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.editor-grid:has(.rank-preview) .swatches > .swatch {
+  flex: 0 0 44px;
+  width: 44px !important;
+  min-width: 44px;
+  max-width: 44px;
+  height: 44px !important;
+  min-height: 44px;
+  max-height: 44px;
+  aspect-ratio: 1;
+  padding: 0;
+  border-radius: 50%;
+}
+
 @media (max-width: 1100px) {
   .editor-grid:has(.rank-preview) {
     grid-template-columns: minmax(0, 1fr);
@@ -34,5 +58,9 @@
   .editor-grid:has(.rank-preview) .rank-preview {
     aspect-ratio: auto;
     min-height: 268px;
+  }
+
+  .editor-grid:has(.rank-preview) .swatches > .swatch {
+    flex-basis: 44px;
   }
 }
