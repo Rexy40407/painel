@@ -1,22 +1,38 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <!-- panel bundle 0062f88: nickname is operational -->
-    <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.vozen.org; form-action https://discord.com 'self'" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#080a14" />
-    <script type="module" src="./ui-route-bridge.js"></script>
-    <script type="module" crossorigin src="./assets/index-B3zUOUj-.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-C5msHgF4.css">
-    <title>Vozen Helper — Dashboard</title>
-    <link rel="stylesheet" href="./ui-refresh.css?v=poll-flow-1">
-    <link rel="stylesheet" href="./module-previews.css?v=preview-contract-1">
-    <link rel="stylesheet" href="./xp-card-fix.css?v=xp-swatches-1">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <link rel="canonical" href="https://vozen.org/panel/helper/" />
+    <title>Vozen Helper has moved</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #080d18; color: #f1f6ff; }
+      body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; box-sizing: border-box; }
+      main { width: min(100%, 440px); padding: 32px; border: 1px solid #29415e; border-radius: 18px; background: #101b2d; box-shadow: 0 18px 70px rgb(0 0 0 / 35%); }
+      h1 { margin: 0 0 12px; font-size: clamp(1.5rem, 4vw, 2rem); }
+      p { margin: 0 0 22px; line-height: 1.55; color: #b6c6dd; }
+      a { display: inline-flex; min-height: 44px; align-items: center; padding: 0 18px; border-radius: 10px; color: #06111c; background: #65e2db; font-weight: 700; text-decoration: none; }
+      a:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="./ui-refresh.js?v=semantic-previews-6"></script>
-    <script type="module" src="./ui-localization.js?v=english-1"></script>
+    <main>
+      <h1>Vozen Helper has moved</h1>
+      <p>Opening the secure Vozen Helper panel now.</p>
+      <a id="continue" href="https://vozen.org/panel/helper/">Continue to Vozen Helper</a>
+    </main>
+    <script>
+      (() => {
+        const root = 'https://vozen.org/panel/helper/';
+        const hash = window.location.hash || '';
+        const safeHash = /^#\/(?:config\/[a-z0-9]+(?:[._-][a-z0-9]+)*|quick-setup|features|activity|rank-card)?$/i;
+        const destination = safeHash.test(hash) ? `${root}${hash}` : root;
+        const link = document.getElementById('continue');
+        link.href = destination;
+        window.location.replace(destination);
+      })();
+    </script>
   </body>
 </html>
