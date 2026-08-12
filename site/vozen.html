@@ -396,7 +396,7 @@
           </div>
         </div>
         <nav class="p-nav" aria-label="Trocar de painel">
-          <a href="helper.html" aria-label="Abrir Helper tracker">Helper</a>
+          <a href="./" aria-label="Abrir Helper tracker">Helper</a>
           <span class="is-active" aria-current="page">Vozen</span>
         </nav>
         <button class="p-logout" id="logoutBtn" type="button">Terminar sessão</button>
@@ -640,7 +640,7 @@
             /* storage is optional; keep the Vozen admin login flow available */
           }
           if (target === 'helper') {
-            const helperUrl = new URL('helper.html', location.href);
+            const helperUrl = new URL('./', location.href);
             helperUrl.hash = 'access_token=' + encodeURIComponent(token);
             forwardingToHelper = true;
             location.replace(helperUrl.toString());
