@@ -896,8 +896,14 @@
       }
 
       $('helperPanelLink').addEventListener('click', (event) => {
+        // Keep the anchor as a reliable fallback. If this tab no longer has a
+        // short-lived Discord token, let the official Helper route handle its
+        // normal Vozen account session instead of swallowing the click.
+        const oauthToken = discordToken || readStoredOAuthToken();
+        if (!oauthToken) return;
         event.preventDefault();
-        void openHelperPanel();
+        try { sessionStorage.removeItem(HELPER_RENEWED_KEY); } catch (_e) { /* best effort */ }
+        submitHelperHandoff(oauthToken);
       });
 
       // Login só com o token OAuth do Discord: o servidor confirma que a identidade é o dono
