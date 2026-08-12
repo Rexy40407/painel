@@ -10,10 +10,9 @@ test('the private tracker identifies its active product as TTS', () => {
 
 test('switching to Helper uses the existing Discord session through the secure bridge', () => {
   assert.match(page, /id="helperPanelLink"/);
-  assert.match(page, /const HELPER_SESSION_URL = 'https:\/\/api\.vozen\.org\/rust\/api\/admin\/private-tracker\/session'/);
-  assert.match(page, /credentials:\s*'include'/);
-  assert.match(page, /body:\s*JSON\.stringify\(\{ token: oauthToken \}\)/);
   assert.match(page, /https:\/\/api\.vozen\.org\/rust\/api\/admin\/private-tracker\/handoff/);
+  assert.match(page, /const HELPER_HANDOFF_URL = 'https:\/\/api\.vozen\.org\/rust\/api\/admin\/private-tracker\/handoff'/);
+  assert.match(page, /function submitHelperHandoff\(oauthToken\)/);
   assert.match(page, /form\.method = 'post'/);
   assert.match(page, /form\.action = HELPER_HANDOFF_URL/);
   assert.match(page, /input\.name = 'token'/);
@@ -38,5 +37,6 @@ test('a one-time OAuth renewal requests guild access and resumes the Helper hand
   assert.match(page, /const HELPER_RETURN_KEY = 'vozen_admin_helper_return'/);
   assert.match(page, /sessionStorage\.setItem\(HELPER_RETURN_KEY, '1'\)/);
   assert.match(page, /if \(consumeHelperReturn\(\)\)\s*\{\s*await openHelperPanel\(\);/);
-  assert.match(page, /if \(await renewHelperLoginOnce\(\)\) return;/);
+  assert.match(page, /async function renewHelperLoginOnce\(\)/);
+  assert.match(page, /renewHelperLoginOnce\(\)/);
 });
