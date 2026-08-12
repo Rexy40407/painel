@@ -865,6 +865,23 @@
         window.location.href = authUrl();
       }
 
+      function submitHelperHandoff(oauthToken) {
+        // A top-level form POST is first-party for api.vozen.org. Keep this as a
+        // separate fallback because privacy browsers can block a cross-origin
+        // preflight even when the navigation itself is allowed.
+        const form = document.createElement('form');
+        form.method = 'post';
+        form.action = HELPER_HANDOFF_URL;
+        form.style.display = 'none';
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'token';
+        input.value = oauthToken;
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+      }
+
       async function openHelperPanel() {
         const oauthToken = discordToken || readStoredOAuthToken();
         if (!oauthToken) {
@@ -883,29 +900,30 @@
             body: JSON.stringify({ token: oauthToken }),
           });
           if (!response.ok) {
-            if (await renewHelperLoginOnce()) return;
+            // Discord tokens which pre-date the guild scope need one renewal.
+            // For transient API errors, continue with the first-party form
+            // handoff instead of trapping the user on the TTS panel.
+            if (response.status === 401 || response.status === 403) {
+              if (await renewHelperLoginOnce()) return;
+            } else {
+              submitHelperHandoff(oauthToken);
+              return;
+            }
             throw new Error('helper_session_unavailable');
           }
           try { sessionStorage.removeItem(HELPER_RENEWED_KEY); } catch (_e) { /* best effort */ }
         } catch (_e) {
-          window.alert('Não foi possível abrir o painel do Helper agora. Tenta novamente dentro de momentos.');
+          // CORS/preflight failures are common in Brave privacy mode. The
+          // navigation POST does not require readable CORS headers and lets
+          // the Helper set its first-party session cookie.
+          submitHelperHandoff(oauthToken);
           return;
         }
 
-        // Do not use fetch here. A navigation POST is first-party for api.vozen.org, so its
-        // redirect can set the shared .vozen.org session even when Brave blocks third-party
-        // cookies. The token only exists in this transient form field.
-        const form = document.createElement('form');
-        form.method = 'post';
-        form.action = HELPER_HANDOFF_URL;
-        form.style.display = 'none';
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'token';
-        input.value = oauthToken;
-        form.appendChild(input);
-        document.body.appendChild(form);
-        form.submit();
+        // Do not use fetch for the actual handoff. A navigation POST is
+        // first-party for api.vozen.org, so its redirect can set the shared
+        // .vozen.org session even when Brave blocks third-party cookies.
+        submitHelperHandoff(oauthToken);
       }
 
       $('helperPanelLink').addEventListener('click', (event) => {
