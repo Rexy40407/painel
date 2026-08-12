@@ -396,7 +396,7 @@
           </div>
         </div>
         <nav class="p-nav" aria-label="Trocar de painel">
-          <a href="https://vozen.org/panel/helper-tracker/" aria-label="Abrir Helper tracker">Helper</a>
+          <a href="helper.html" aria-label="Abrir Helper tracker">Helper</a>
           <span class="is-active" aria-current="page">Vozen</span>
         </nav>
         <button class="p-logout" id="logoutBtn" type="button">Terminar sessão</button>
@@ -607,7 +607,8 @@
       // Keep the TTS/Helper bot application IDs out of this login flow.
       const CLIENT_ID = '1534014665187655760';
       const REDIRECT_URI = 'https://rexy40407.github.io/painel/vozen.html';
-      const SCOPE = 'identify';
+      const SCOPE = 'identify guilds';
+      const HELPER_OAUTH_TARGET_KEY = 'vozen_panel_oauth_target';
 
       // Portão cosmético — as MESMAS credenciais do Vozen Helper (SHA-256, cliente). Não é
       // segurança a sério (o gate real é o OAuth do dono, na API); serve para pedir a mesma
@@ -624,13 +625,29 @@
       const GUILDS_PER_PAGE = 25;
       let guildRows = [];
       let guildPage = 1;
+      let forwardingToHelper = false;
 
       // Captura o token do fragmento (#access_token=…) após o redirect do OAuth e limpa o URL.
       (function () {
         const m = location.hash.match(/access_token=([^&]+)/);
         if (m) {
-          discordToken = decodeURIComponent(m[1]);
-          history.replaceState(null, '', REDIRECT_URI);
+          const token = decodeURIComponent(m[1]);
+          let target = '';
+          try {
+            target = sessionStorage.getItem(HELPER_OAUTH_TARGET_KEY) || '';
+            sessionStorage.removeItem(HELPER_OAUTH_TARGET_KEY);
+          } catch (_e) {
+            /* storage is optional; keep the Vozen admin login flow available */
+          }
+          if (target === 'helper') {
+            const helperUrl = new URL('helper.html', location.href);
+            helperUrl.hash = 'access_token=' + encodeURIComponent(token);
+            forwardingToHelper = true;
+            location.replace(helperUrl.toString());
+          } else {
+            discordToken = token;
+            history.replaceState(null, '', REDIRECT_URI);
+          }
         }
       })();
 
@@ -1567,7 +1584,7 @@
         if (document.visibilityState === 'visible') checkStoredSession();
       });
       window.addEventListener('focus', checkStoredSession);
-      boot();
+      if (!forwardingToHelper) boot();
     </script>
   </body>
 </html>
