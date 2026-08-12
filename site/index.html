@@ -27,7 +27,7 @@
       (() => {
         const root = 'https://vozen.org/panel/helper/';
         const hash = window.location.hash || '';
-        const safeHash = /^#\/(?:config\/[a-z0-9]+(?:[._-][a-z0-9]+)*|quick-setup|features|activity|rank-card)?$/i;
+        const safeHash = /^#\/(?:config\/[a-z0-9]+(?:[._-][a-z0-9]+)*|tracker|quick-setup|features|activity|rank-card)?$/i;
         const destination = safeHash.test(hash) ? `${root}${hash}` : root;
         const link = document.getElementById('continue');
         link.href = destination;
