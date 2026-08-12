@@ -888,46 +888,10 @@
           beginHelperLogin();
           return;
         }
-
-        // This preflight gives a friendly automatic scope renewal for sessions created before
-        // the Tracker asked for `guilds`. It also lets us show a controlled error instead of
-        // sending the browser to a raw API error page if the Helper service is unavailable.
-        const preflightController = new AbortController();
-        const preflightTimeout = setTimeout(() => preflightController.abort(), 2000);
-        try {
-          const response = await fetch(HELPER_SESSION_URL, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ token: oauthToken }),
-            signal: preflightController.signal,
-          });
-          if (!response.ok) {
-            // Discord tokens which pre-date the guild scope need one renewal.
-            // For transient API errors, continue with the first-party form
-            // handoff instead of trapping the user on the TTS panel.
-            if (response.status === 401 || response.status === 403) {
-              if (await renewHelperLoginOnce()) return;
-            } else {
-              submitHelperHandoff(oauthToken);
-              return;
-            }
-            throw new Error('helper_session_unavailable');
-          }
-          try { sessionStorage.removeItem(HELPER_RENEWED_KEY); } catch (_e) { /* best effort */ }
-        } catch (_e) {
-          // CORS/preflight failures are common in Brave privacy mode. The
-          // navigation POST does not require readable CORS headers and lets
-          // the Helper set its first-party session cookie.
-          submitHelperHandoff(oauthToken);
-          return;
-        } finally {
-          clearTimeout(preflightTimeout);
-        }
-
-        // Do not use fetch for the actual handoff. A navigation POST is
-        // first-party for api.vozen.org, so its redirect can set the shared
-        // .vozen.org session even when Brave blocks third-party cookies.
+        // A navigation POST is the complete handoff. It is first-party for
+        // api.vozen.org, sets the Helper cookie in the redirect, and avoids
+        // CORS/preflight and privacy-browser timing issues entirely.
+        try { sessionStorage.removeItem(HELPER_RENEWED_KEY); } catch (_e) { /* best effort */ }
         submitHelperHandoff(oauthToken);
       }
 

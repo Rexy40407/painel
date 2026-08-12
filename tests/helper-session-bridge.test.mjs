@@ -20,12 +20,11 @@ test('switching to Helper uses the existing Discord session through the secure b
   assert.match(page, /form\.submit\(\)/);
 });
 
-test('Helper handoff falls back to a first-party form when the preflight is blocked', () => {
+test('Helper handoff uses a first-party form directly, without a fragile preflight', () => {
   assert.match(page, /function submitHelperHandoff\(oauthToken\)/);
-  assert.match(page, /catch \(_e\) \{\s*\/\/ CORS\/preflight failures[\s\S]*?submitHelperHandoff\(oauthToken\);/);
-  assert.match(page, /if \(response\.status === 401 \|\| response\.status === 403\)/);
-  assert.match(page, /setTimeout\(\(\) => preflightController\.abort\(\), 2000\)/);
-  assert.match(page, /signal: preflightController\.signal/);
+  assert.match(page, /A navigation POST is the complete handoff/);
+  assert.doesNotMatch(page, /preflightController/);
+  assert.match(page, /submitHelperHandoff\(oauthToken\);/);
 });
 
 test('the handoff never appends a Discord token to the Helper URL', () => {
