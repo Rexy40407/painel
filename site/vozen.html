@@ -396,8 +396,8 @@
           </div>
         </div>
         <nav class="p-nav" aria-label="Trocar de painel">
-          <a href="https://vozen.org/panel/helper-tracker/" id="helperPanelLink">Helper</a>
-          <span class="is-active" aria-current="page">TTS</span>
+          <a href="vozen.html?product=helper" id="helperPanelLink">Helper</a>
+          <a href="vozen.html" id="ttsPanelLink" class="is-active" aria-current="page">TTS</a>
         </nav>
         <button class="p-logout" id="logoutBtn" type="button">Terminar sessão</button>
       </div>
@@ -549,7 +549,7 @@
         <div class="servers-grid">
           <div class="box">
             <div class="box-head">
-              <h2>Servidores do Vozen</h2>
+              <h2 id="guildsTitle">Servidores do Vozen</h2>
               <span class="server-count" aria-label="Número total de servidores">
                 <strong class="server-count__value" id="guildsCount" aria-live="polite">—</strong>
                 <span class="server-count__label">servidores</span>
@@ -558,7 +558,7 @@
             <div class="tblwrap">
               <table>
                 <thead>
-                  <tr><th>Servidor</th><th>Membros</th><th>Mensagens lidas</th><th>Entrou em</th><th>Streak</th></tr>
+                  <tr><th>Servidor</th><th id="guildMembersHead">Membros</th><th id="guildMessagesHead">Mensagens lidas</th><th id="guildJoinedHead">Entrou em</th><th id="guildStreakHead">Streak</th></tr>
                 </thead>
                 <tbody id="guildsBody"></tbody>
               </table>
@@ -575,7 +575,7 @@
             <p class="soon" style="margin-top:14px;font-size:12.5px">Clica num servidor para ver quem mais escreveu.</p>
           </div>
           <div class="box">
-            <h2>Top 10 — pessoas com mais mensagens</h2>
+            <h2 id="topTalkersTitle">Top 10 — pessoas com mais mensagens</h2>
             <ol class="toptalkers" id="topTalkersList"></ol>
             <div class="empty" id="topTalkersEmpty" style="display:none">Sem dados.</div>
             <p class="msg" id="topTalkersMsg"></p>
@@ -603,6 +603,14 @@
       // fallback for older VPS proxies so a migration never strands an existing panel session.
       const API_BASES = ['https://api.vozen.org', 'https://api.vozen.org/rust'];
       let API_BASE = API_BASES[0];
+      const HELPER_SESSION_KEY = 'vozen_helper_private_session';
+      const DISCORD_TOKEN_KEY = 'vozen_panel_discord_token';
+      const PRODUCT_KEY = 'vozen_panel_product';
+      const requestedProduct = new URLSearchParams(location.search).get('product');
+      const isHelperProduct = requestedProduct === 'helper' ||
+        (location.hash.includes('access_token=') && (() => { try { return sessionStorage.getItem(PRODUCT_KEY) === 'helper'; } catch (_e) { return false; } })());
+      let helperSession = null;
+      let helperApiBase = API_BASES[0];
       // Dedicated OAuth application for the owner-only administration panel.
       // Keep the TTS/Helper bot application IDs out of this login flow.
       const CLIENT_ID = '1534014665187655760';
@@ -630,9 +638,42 @@
         const m = location.hash.match(/access_token=([^&]+)/);
         if (m) {
           discordToken = decodeURIComponent(m[1]);
+          try { sessionStorage.setItem(DISCORD_TOKEN_KEY, discordToken); } catch (_e) {}
           history.replaceState(null, '', REDIRECT_URI);
         }
       })();
+
+      function readHelperSession() {
+        try { return JSON.parse(sessionStorage.getItem(HELPER_SESSION_KEY) || 'null'); } catch (_e) { return null; }
+      }
+      function saveHelperSession(value) {
+        helperSession = value;
+        helperApiBase = API_BASES.includes(value && value.apiBase) ? value.apiBase : API_BASES[0];
+        try { sessionStorage.setItem(HELPER_SESSION_KEY, JSON.stringify(value)); } catch (_e) {}
+      }
+      function clearHelperSession() {
+        helperSession = null;
+        try { sessionStorage.removeItem(HELPER_SESSION_KEY); } catch (_e) {}
+      }
+      function setProductNavigation() {
+        const helperLink = $('helperPanelLink');
+        const ttsLink = $('ttsPanelLink');
+        helperLink.classList.toggle('is-active', isHelperProduct);
+        ttsLink.classList.toggle('is-active', !isHelperProduct);
+        if (isHelperProduct) {
+          helperLink.setAttribute('aria-current', 'page');
+          ttsLink.removeAttribute('aria-current');
+          $('panelUser').textContent = 'sessão iniciada · Helper';
+          $('guildsTitle').textContent = 'Servidores do Helper';
+          $('topTalkersTitle').textContent = 'Atividade recente do Helper';
+          document.title = 'Vozen · Painel · Helper';
+        } else {
+          helperLink.removeAttribute('aria-current');
+          ttsLink.setAttribute('aria-current', 'page');
+          $('guildsTitle').textContent = 'Servidores do Vozen';
+          $('topTalkersTitle').textContent = 'Top 10 — pessoas com mais mensagens';
+        }
+      }
 
       const authUrl = () =>
         'https://discord.com/api/oauth2/authorize' +
@@ -765,6 +806,7 @@
       //  - já passaste o portão (do Helper ou aqui) -> direto ao "Entrar com Discord";
       //  - senão -> pede o portão (mesma password do Helper).
       function boot() {
+        setProductNavigation();
         if (discordToken) {
           showSect('sLoading');
           doLogin();
@@ -774,10 +816,22 @@
             session = saved.token;
             API_BASE = API_BASES.includes(saved.apiBase) ? saved.apiBase : API_BASES[0];
             sessionExpiresAt = Number(saved.expiresAt) || 0;
-            openPanel();
+            if (!isHelperProduct) {
+              openPanel();
+            } else {
+              helperSession = readHelperSession();
+              if (helperSession && helperSession.token) saveHelperSession(helperSession);
+              const savedDiscord = (() => { try { return sessionStorage.getItem(DISCORD_TOKEN_KEY) || ''; } catch (_e) { return ''; } })();
+              if (helperSession && helperSession.token) openPanel();
+              else if (savedDiscord) { discordToken = savedDiscord; showSect('sLoading'); doLogin(); }
+              else showSect('sDiscord');
+            }
           } else {
             clearStoredSession();
-            showSect('sDiscord');
+            helperSession = isHelperProduct ? readHelperSession() : null;
+            if (helperSession && helperSession.token) saveHelperSession(helperSession);
+            if (isHelperProduct && helperSession && helperSession.token) openPanel();
+            else showSect('sDiscord');
           }
         }
       }
@@ -796,8 +850,12 @@
         }
       }
 
-      $('discordBtn').addEventListener('click', () => (window.location.href = authUrl()));
-      $('retryBtn').addEventListener('click', () => (window.location.href = authUrl()));
+      function startOAuth() {
+        if (isHelperProduct) { try { sessionStorage.setItem(PRODUCT_KEY, 'helper'); } catch (_e) {} }
+        window.location.href = authUrl();
+      }
+      $('discordBtn').addEventListener('click', startOAuth);
+      $('retryBtn').addEventListener('click', startOAuth);
 
       // Login só com o token OAuth do Discord: o servidor confirma que a identidade é o dono
       // (OWNER_ID) e devolve a sessão. Sem password — quem não for o dono leva 403.
@@ -815,6 +873,8 @@
             session = d.token;
             sessionExpiresAt = Number(d.expiresAt) || 0;
             saveStoredSession();
+            if (discordToken && isHelperProduct) await prepareHelperSession(discordToken);
+            else if (discordToken) prepareHelperSession(discordToken);
             openPanel();
             return;
           } catch (_e) {
@@ -823,6 +883,26 @@
           }
         }
         showSect('sDenied');
+      }
+
+      async function prepareHelperSession(token) {
+        if (!token) return;
+        for (const base of API_BASES) {
+          try {
+            const response = await fetch(base + '/api/admin/private-tracker/session', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token }),
+              cache: 'no-store',
+            });
+            if (!response.ok) continue;
+            const data = await response.json();
+            if (data.token) {
+              saveHelperSession({ token: data.token, expiresAt: data.expires_at || data.expiresAt || '', apiBase: base });
+              return;
+            }
+          } catch (_e) { /* Helper pode estar temporariamente indisponível; TTS continua */ }
+        }
       }
 
       $('logoutBtn').addEventListener('click', async () => {
@@ -837,6 +917,8 @@
         clearTimeout(sessionIdleTimer);
         sessionIdleTimer = null;
         clearStoredSession();
+        clearHelperSession();
+        try { sessionStorage.removeItem(DISCORD_TOKEN_KEY); } catch (_e) {}
         session = '';
         sessionExpiresAt = 0;
         discordToken = '';
@@ -876,14 +958,90 @@
       }
 
       function openPanel() {
+        setProductNavigation();
         $('auth').style.display = 'none';
         document.body.classList.add('has-panel');
         $('panel').classList.add('show');
         armSessionIdle();
         loadPasses();
-        loadSystemMetrics();
+        if (isHelperProduct) loadHelperMetrics();
+        else loadSystemMetrics();
         clearInterval(metricsTimer);
-        metricsTimer = setInterval(loadSystemMetrics, 30_000);
+        metricsTimer = setInterval(isHelperProduct ? loadHelperMetrics : loadSystemMetrics, 30_000);
+      }
+
+      async function helperJson(path, opts = {}) {
+        if (!helperSession || !helperSession.token) throw new Error('helper_auth');
+        const response = await fetch(helperApiBase + path, {
+          ...opts,
+          cache: 'no-store',
+          headers: { Accept: 'application/json', Authorization: 'Bearer ' + helperSession.token, ...(opts.headers || {}) },
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const error = new Error(data.code || data.message || 'helper_request_failed');
+          error.status = response.status;
+          throw error;
+        }
+        return data;
+      }
+
+      function renderHelperMetrics(data) {
+        const health = data.health || {};
+        const stats = data.stats || {};
+        const activity = Array.isArray(data.activity) ? data.activity : [];
+        const features = Array.isArray(data.features) ? data.features : [];
+        const enabled = features.filter((feature) => feature && feature.enabled).length;
+        const runtimeOk = health.status === 'ok';
+        $('databaseMetric').dataset.state = runtimeOk ? 'healthy' : 'unknown';
+        $('databaseState').textContent = runtimeOk ? 'Ligado' : 'Indisponível';
+        $('databaseSize').textContent = runtimeOk ? 'Online' : '—';
+        $('databaseDetail').textContent = runtimeOk ? 'API do Helper operacional' : 'Não foi possível obter o estado do Helper.';
+        $('databaseExactSize').textContent = runtimeOk ? (health.version ? 'v' + health.version : 'Operacional') : '—';
+        $('databaseUsed').textContent = '—';
+        $('databaseFree').textContent = '—';
+        $('databaseAverage').textContent = '—';
+        $('databaseFill').style.transform = runtimeOk ? 'scaleX(1)' : 'scaleX(0)';
+        $('databaseHistoryNote').textContent = 'Estado atual';
+        renderDatabaseHistory([]);
+        $('supabaseMetric').dataset.state = features.length ? 'healthy' : 'unknown';
+        $('supabaseState').textContent = features.length ? 'Ativos' : 'Sem leitura';
+        $('supabaseSize').textContent = enabled + '/' + features.length;
+        $('supabaseDetail').textContent = enabled + ' módulo' + (enabled === 1 ? '' : 's') + ' ativo' + (enabled === 1 ? '' : 's') + ' neste servidor';
+        $('supabaseExactSize').textContent = enabled + ' ativos';
+        $('supabaseQuota').textContent = features.length + ' disponíveis';
+        $('supabaseFree').textContent = String(Math.max(0, features.length - enabled)) + ' livres';
+        $('supabaseAverage').textContent = '—';
+        $('supabaseFill').style.transform = features.length ? 'scaleX(' + (enabled / features.length) + ')' : 'scaleX(0)';
+        $('supabaseHistoryNote').textContent = 'Estado atual';
+        renderSupabaseHistory([]);
+        $('activeSessions').textContent = String(activity.length);
+        $('activeSessionsDetail').textContent = activity.length === 1 ? '1 ação recente do Helper' : activity.length + ' ações recentes do Helper';
+        renderActiveServers([]);
+        $('outboxMetric').dataset.state = 'healthy';
+        $('outboxState').textContent = 'Em dia';
+        $('outboxRows').textContent = String(Math.max(0, Number(stats.totalCases) || 0));
+        $('outboxDetail').textContent = (Number(stats.totalCases) || 0) + ' casos registados no servidor selecionado';
+        $('metricsUpdated').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+      }
+
+      async function loadHelperMetrics() {
+        const refresh = $('metricsRefresh');
+        if (!helperSession || refresh.disabled) return;
+        refresh.disabled = true;
+        refresh.classList.add('is-loading');
+        try {
+          const [health, stats, activityData, featureData] = await Promise.all([
+            helperJson('/health'), helperJson('/api/stats'), helperJson('/api/activity?limit=24'), helperJson('/api/config/features'),
+          ]);
+          renderHelperMetrics({ health, stats, activity: activityData.activity, features: featureData.features });
+        } catch (error) {
+          if (error.status === 401 || error.status === 403) { clearHelperSession(); showSect('sDiscord'); return; }
+          renderMetricsUnavailable();
+        } finally {
+          refresh.disabled = false;
+          refresh.classList.remove('is-loading');
+        }
       }
 
       function formatBytes(value) {
@@ -1170,6 +1328,25 @@
         msg.textContent = '';
         let d;
         try {
+          if (isHelperProduct) {
+            d = await helperJson('/api/guilds');
+            guildRows = (Array.isArray(d.guilds) ? d.guilds : []).map((guild) => ({
+              id: guild.id,
+              name: guild.name || 'Servidor sem nome',
+              icon: guild.icon || '',
+              memberCount: guild.canManage ? 'Gerível' : 'Sem acesso',
+              messages: '—',
+              joinedTimestamp: 0,
+              streak: 0,
+              bestStreak: 0,
+              helper: true,
+            }));
+            guildPage = 1;
+            setHelperTableHeadings();
+            renderGuilds(guildRows);
+            serversLoaded = true;
+            return;
+          }
           d = await adminJson('/api/admin/guilds');
         } catch (_e) {
           serversLoaded = false; // permite tentar de novo
@@ -1181,6 +1358,13 @@
         guildPage = 1;
         renderGuilds(guildRows);
         serversLoaded = true;
+      }
+
+      function setHelperTableHeadings() {
+        $('guildMembersHead').textContent = isHelperProduct ? 'Acesso' : 'Membros';
+        $('guildMessagesHead').textContent = isHelperProduct ? 'Casos' : 'Mensagens lidas';
+        $('guildJoinedHead').textContent = isHelperProduct ? 'Estado' : 'Entrou em';
+        $('guildStreakHead').textContent = isHelperProduct ? 'Helper' : 'Streak';
       }
 
       function renderGuilds(guilds) {
@@ -1213,8 +1397,8 @@
           tr.appendChild(nameTd);
           tr.appendChild(cell(String(g.memberCount)));
           tr.appendChild(cell(String(g.messages)));
-          tr.appendChild(cell(fmtDate(g.joinedTimestamp)));
-          tr.appendChild(streakCell(g.streak, g.bestStreak));
+          tr.appendChild(cell(isHelperProduct ? 'Disponível' : fmtDate(g.joinedTimestamp)));
+          tr.appendChild(isHelperProduct ? cell('Helper') : streakCell(g.streak, g.bestStreak));
           body.appendChild(tr);
 
           // Linha de detalhe (top speakers), escondida até clicarem.
@@ -1240,7 +1424,7 @@
           } else {
             const none = document.createElement('span');
             none.className = 'empty';
-            none.textContent = 'Ainda sem mensagens lidas.';
+            none.textContent = isHelperProduct ? 'Sem atividade detalhada neste servidor.' : 'Ainda sem mensagens lidas.';
             dtd.appendChild(none);
           }
           dtr.appendChild(dtd);
@@ -1311,6 +1495,19 @@
         msg.textContent = '';
         let d;
         try {
+          if (isHelperProduct) {
+            d = await helperJson('/api/activity?limit=10');
+            const activity = Array.isArray(d.activity) ? d.activity : [];
+            const counts = new Map();
+            for (const item of activity) {
+              const id = item.user_id || item.user_tag || 'Helper';
+              const current = counts.get(id) || { id, username: item.user_tag || id, total: 0, avatar: item.avatar || '' };
+              current.total += 1;
+              counts.set(id, current);
+            }
+            renderTopTalkers([...counts.values()].sort((a, b) => b.total - a.total).slice(0, 10));
+            return;
+          }
           d = await adminJson('/api/admin/toptalkers');
         } catch (_e) {
           msg.className = 'msg bad';
@@ -1490,6 +1687,7 @@
         clearTimeout(sessionIdleTimer);
         sessionIdleTimer = null;
         clearStoredSession();
+        if (isHelperProduct) clearHelperSession();
         session = '';
         sessionExpiresAt = 0;
         serversLoaded = false;

@@ -5,12 +5,15 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../', import.meta.url);
 const page = await readFile(new URL('site/vozen.html', root), 'utf8');
 
-test('the private Vozen panel links directly to the authenticated Helper account route', () => {
-  assert.match(page, /href="https:\/\/vozen\.org\/panel\/helper-tracker\/"\s+id="helperPanelLink"/);
+test('the private Vozen panel opens the private Helper tracker variant', () => {
+  assert.match(page, /href="vozen\.html\?product=helper"\s+id="helperPanelLink"/);
+  assert.match(page, /product=helper/);
   assert.match(page, /const SCOPE = 'identify guilds';/);
-  assert.doesNotMatch(page, /private-tracker\/handoff/);
-  assert.doesNotMatch(page, /helperPanelLink'\)\.addEventListener/);
-  assert.doesNotMatch(page, /vozen_panel_oauth_target/);
+  assert.match(page, /\/api\/admin\/private-tracker\/session/);
+  assert.match(page, /\/api\/guilds/);
+  assert.match(page, /helperPanelLink/);
+  assert.match(page, /id="guildsTitle"/);
+  assert.match(page, /Servidores do Helper/);
 });
 
 test('the private Helper tracker exchanges an owner OAuth token for a scoped API session', async () => {
@@ -23,8 +26,8 @@ test('the private Helper tracker exchanges an owner OAuth token for a scoped API
   assert.match(helper, /Atividade recente/);
 });
 
-test('the old private Helper path only forwards to the private tracker root', async () => {
+test('the legacy private Helper path remains a compatibility redirect', async () => {
   const legacy = await readFile(new URL('site/helper.html', root), 'utf8');
-  assert.match(legacy, /location\.replace\('\.\/'\)/);
+  assert.match(legacy, /location\.replace\('\.\/vozen\.html\?product=helper'\)/);
   assert.doesNotMatch(legacy, /PRIVATE_SESSION_KEY/);
 });
