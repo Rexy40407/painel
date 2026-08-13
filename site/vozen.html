@@ -1482,9 +1482,9 @@
           const nameTd = document.createElement('td');
           const wrap = document.createElement('div');
           wrap.className = 'gname';
-          const ic = document.createElement(g.iconUrl || g.icon ? 'img' : 'span');
-          ic.className = 'gicon';
           const iconUrl = g.iconUrl || g.icon || '';
+          const ic = document.createElement(iconUrl ? 'img' : 'span');
+          ic.className = 'gicon';
           if (iconUrl) {
             ic.src = iconUrl;
             ic.alt = '';
