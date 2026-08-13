@@ -25,7 +25,10 @@ test('metrics use accessible disclosure controls, including active server names'
 
 test('Helper metrics consume real storage fields and bot guild icons', () => {
   assert.match(page, /stats\.storage/);
-  assert.match(page, /formatBytes\(dbBytes\)/);
+  assert.match(page, /storage\.productBytes/);
+  assert.match(page, /Armazenamento do Vozen Helper/);
+  assert.match(page, /Armazenamento do Vozen TTS/);
+  assert.match(page, /formatBytes\(displayedBytes\)/);
   assert.match(page, /guild\.iconUrl \|\| guild\.icon/);
   assert.match(page, /stats\.activeSessions/);
 });

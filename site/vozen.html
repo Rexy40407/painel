@@ -411,21 +411,21 @@
         <div class="ops__storage">
         <article class="ops__metric" id="databaseMetric" data-state="unknown">
           <div class="ops__top">
-            <span class="ops__label">Base de dados</span>
+            <span class="ops__label" id="databaseLabel">Armazenamento do produto</span>
             <span class="ops__state" id="databaseState">A carregar</span>
           </div>
           <strong class="ops__value" id="databaseSize" aria-live="polite">—</strong>
-          <p class="ops__detail" id="databaseDetail">A obter a leitura do volume…</p>
+          <p class="ops__detail" id="databaseDetail">A obter a pegada do produto…</p>
           <div class="ops__track" aria-hidden="true"><span class="ops__fill" id="databaseFill"></span></div>
           <span class="ops__updated" id="metricsUpdated">Atualização automática a cada 30 segundos</span>
           <details class="ops__details" id="databaseDetails">
             <summary><span>Ver detalhes e histórico</span><span class="ops__details-chevron" aria-hidden="true"></span></summary>
             <div class="ops__details-body">
               <dl class="ops__facts">
-                <div class="ops__fact"><dt>Tamanho SQLite</dt><dd id="databaseExactSize">—</dd></div>
-                <div class="ops__fact"><dt>Volume usado</dt><dd id="databaseUsed">—</dd></div>
-                <div class="ops__fact"><dt>Espaço livre</dt><dd id="databaseFree">—</dd></div>
-                <div class="ops__fact"><dt>Média 7 dias</dt><dd id="databaseAverage">—</dd></div>
+                <div class="ops__fact"><dt>Produto</dt><dd id="databaseExactSize">—</dd></div>
+                <div class="ops__fact"><dt>VPS usado</dt><dd id="databaseUsed">—</dd></div>
+                <div class="ops__fact"><dt>VPS livre</dt><dd id="databaseFree">—</dd></div>
+                <div class="ops__fact"><dt>Média produto 7 dias</dt><dd id="databaseAverage">—</dd></div>
               </dl>
               <div class="ops__history">
                 <div class="ops__history-head"><span class="ops__history-title">Últimos 7 dias</span><span class="ops__history-note" id="databaseHistoryNote">A recolher leituras</span></div>
@@ -1044,6 +1044,7 @@
       }
 
       function renderHelperMetrics(data) {
+        $('databaseLabel').textContent = 'Armazenamento do Vozen Helper';
         const health = data.health || {};
         const stats = data.stats || {};
         const features = Array.isArray(data.features) ? data.features : [];
@@ -1064,21 +1065,23 @@
         // runtime health flag. Keep the health fallback above for old API
         // releases, then replace it with real byte/volume metrics when sent.
         const storage = stats.storage && typeof stats.storage === 'object' ? stats.storage : null;
+        const productBytes = storage ? Number(storage.productBytes) : NaN;
         const dbBytes = storage ? Number(storage.databaseBytes) : NaN;
         const volumeUsed = storage ? Number(storage.volumeUsedBytes) : NaN;
         const volumeFree = storage ? Number(storage.volumeAvailableBytes) : NaN;
         const volumeTotal = storage ? Number(storage.volumeTotalBytes) : NaN;
-        if (Number.isFinite(dbBytes)) {
+        if (Number.isFinite(productBytes) || Number.isFinite(dbBytes)) {
+          const displayedBytes = Number.isFinite(productBytes) ? productBytes : dbBytes;
           const state = Number.isFinite(volumeTotal) && Number.isFinite(volumeUsed)
             ? storageState(volumeTotal, volumeUsed)
             : { key: runtimeOk ? 'healthy' : 'unknown', label: runtimeOk ? 'Ligado' : 'Indisponível', percent: null };
           $('databaseMetric').dataset.state = state.key;
           $('databaseState').textContent = state.label;
-          $('databaseSize').textContent = formatBytes(dbBytes);
+          $('databaseSize').textContent = formatBytes(displayedBytes);
           $('databaseDetail').textContent = state.percent === null
-            ? 'Espaço do volume indisponível nesta leitura.'
-            : 'Volume: ' + state.percent + '% utilizado · ' + formatBytes(volumeFree) + ' livres';
-          $('databaseExactSize').textContent = formatBytes(dbBytes);
+            ? 'Pegada do Helper · volume VPS indisponível nesta leitura.'
+            : 'Produto: ' + formatBytes(displayedBytes) + ' · VPS: ' + state.percent + '% utilizado · ' + formatBytes(volumeFree) + ' livres';
+          $('databaseExactSize').textContent = formatBytes(displayedBytes);
           $('databaseUsed').textContent = formatBytes(volumeUsed);
           $('databaseFree').textContent = formatBytes(volumeFree);
           $('databaseFill').style.transform = state.percent === null ? 'scaleX(0)' : 'scaleX(' + (state.percent / 100) + ')';
@@ -1086,7 +1089,7 @@
         // Never present the Helper runtime health flag as a database size.
         // Older API releases do not send storage metrics, so make that gap
         // explicit instead of showing the misleading "Online" placeholder.
-        if (!Number.isFinite(dbBytes)) {
+        if (!Number.isFinite(productBytes) && !Number.isFinite(dbBytes)) {
           $('databaseMetric').dataset.state = 'unknown';
           $('databaseState').textContent = 'Sem leitura';
           $('databaseSize').textContent = '\u2014';
@@ -1188,7 +1191,7 @@
         const history = $('databaseHistory');
         history.replaceChildren();
         let recorded = 0;
-        let totalDatabaseBytes = 0;
+        let totalProductBytes = 0;
         let totalUsagePercent = 0;
         let usageReadings = 0;
         for (const day of lastSevenUtcDays().reverse()) {
@@ -1205,13 +1208,16 @@
           if (sample) {
             recorded += 1;
             const state = storageState(Number(sample.volumeTotalBytes), Number(sample.volumeUsedBytes));
-            totalDatabaseBytes += Math.max(0, Number(sample.databaseBytes) || 0);
+            const productBytes = Number(sample.productBytes);
+            const databaseBytes = Number(sample.databaseBytes);
+            const displayedBytes = Number.isFinite(productBytes) && productBytes > 0 ? productBytes : databaseBytes;
+            totalProductBytes += Math.max(0, Number.isFinite(displayedBytes) ? displayedBytes : 0);
             if (state.percent !== null) {
               totalUsagePercent += state.percent;
               usageReadings += 1;
             }
             row.dataset.state = state.key;
-            size.textContent = formatBytes(sample.databaseBytes) + ' SQLite';
+            size.textContent = formatBytes(displayedBytes) + ' produto';
             usage.textContent = state.percent === null ? 'sem volume' : state.percent + '%';
           } else {
             row.dataset.state = 'unknown';
@@ -1226,7 +1232,7 @@
           : recorded + ' de 7 registos';
         $('databaseAverage').textContent = recorded === 0
           ? 'Sem dados'
-          : formatBytes(totalDatabaseBytes / recorded) + (usageReadings ? ' · ' + Math.round(totalUsagePercent / usageReadings) + '%' : '');
+          : formatBytes(totalProductBytes / recorded) + (usageReadings ? ' · ' + Math.round(totalUsagePercent / usageReadings) + '%' : '');
       }
 
       function renderSupabaseHistory(samples) {
@@ -1303,21 +1309,24 @@
       }
 
       function renderSystemMetrics(metrics) {
+        $('databaseLabel').textContent = 'Armazenamento do Vozen TTS';
         const databaseBytes = Number(metrics.databaseBytes);
+        const productBytes = Number(metrics.productBytes);
+        const displayedBytes = Number.isFinite(productBytes) ? productBytes : databaseBytes;
         const total = Number(metrics.volumeTotalBytes);
         const used = Number(metrics.volumeUsedBytes);
         const available = Number(metrics.volumeAvailableBytes);
         const state = storageState(total, used);
         $('databaseMetric').dataset.state = state.key;
         $('databaseState').textContent = state.label;
-        $('databaseSize').textContent = formatBytes(databaseBytes);
-        $('databaseExactSize').textContent = formatBytes(databaseBytes);
+        $('databaseSize').textContent = formatBytes(displayedBytes);
+        $('databaseExactSize').textContent = formatBytes(displayedBytes);
         $('databaseUsed').textContent = formatBytes(used);
         $('databaseFree').textContent = formatBytes(available);
         $('databaseFill').style.transform = state.percent === null ? 'scaleX(0)' : 'scaleX(' + (state.percent / 100) + ')';
         $('databaseDetail').textContent = state.percent === null
-          ? 'O volume de dados não está disponível nesta leitura.'
-          : 'Volume de dados: ' + state.percent + '% utilizado · ' + formatBytes(available) + ' livres';
+          ? 'Pegada do TTS · volume VPS indisponível nesta leitura.'
+          : 'Produto: ' + formatBytes(displayedBytes) + ' · VPS: ' + state.percent + '% utilizado · ' + formatBytes(available) + ' livres';
         const supabase = metrics && metrics.supabase && typeof metrics.supabase === 'object' ? metrics.supabase : null;
         const supabaseBytes = supabase ? Number(supabase.databaseBytes) : NaN;
         const supabaseCapacity = supabase ? Number(supabase.capacityBytes) : NaN;
@@ -1357,6 +1366,7 @@
       }
 
       function renderMetricsUnavailable() {
+        $('databaseLabel').textContent = isHelperProduct ? 'Armazenamento do Vozen Helper' : 'Armazenamento do Vozen TTS';
         $('databaseMetric').dataset.state = 'unknown';
         $('databaseState').textContent = 'Indisponível';
         $('databaseSize').textContent = '—';
