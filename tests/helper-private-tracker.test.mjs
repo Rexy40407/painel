@@ -5,10 +5,11 @@ import { readFile } from 'node:fs/promises';
 const root = new URL('../', import.meta.url);
 const page = await readFile(new URL('site/vozen.html', root), 'utf8');
 
-test('the private Vozen panel sends the Helper tab through its secure session bridge', () => {
+test('the private Vozen panel links directly to the authenticated Helper account route', () => {
   assert.match(page, /href="https:\/\/vozen\.org\/panel\/helper-tracker\/"\s+id="helperPanelLink"/);
   assert.match(page, /const SCOPE = 'identify guilds';/);
-  assert.match(page, /const HELPER_HANDOFF_URL = 'https:\/\/api\.vozen\.org\/rust\/api\/admin\/private-tracker\/handoff';/);
+  assert.doesNotMatch(page, /private-tracker\/handoff/);
+  assert.doesNotMatch(page, /helperPanelLink'\)\.addEventListener/);
   assert.doesNotMatch(page, /vozen_panel_oauth_target/);
 });
 

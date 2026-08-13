@@ -607,23 +607,12 @@
       // Keep the TTS/Helper bot application IDs out of this login flow.
       const CLIENT_ID = '1534014665187655760';
       const REDIRECT_URI = 'https://rexy40407.github.io/painel/vozen.html';
-      // The Helper handoff also needs the managed guild list. This is requested once during
-      // the owner login and then reused for both panels in the current browser tab.
+      // Guild access is required by the private TTS administration endpoints.
       const SCOPE = 'identify guilds';
-      const HELPER_PANEL_URL = 'https://vozen.org/panel/helper-tracker/';
-      const HELPER_SESSION_URL = 'https://api.vozen.org/rust/api/admin/private-tracker/session';
-      // A top-level form POST is deliberate: it lets the Helper set its first-party .vozen.org
-      // cookie even in browsers that block third-party cookies. The Discord token is never put
-      // in a URL, stored on the Helper page, or returned by the bridge.
-      const HELPER_HANDOFF_URL = 'https://api.vozen.org/rust/api/admin/private-tracker/handoff';
-
       // Portão cosmético — as MESMAS credenciais do Vozen Helper (SHA-256, cliente). Não é
       // segurança a sério (o gate real é o OAuth do dono, na API); serve para pedir a mesma
       // posta pelo Helper quando passas o portão dele, para não pedir duas vezes.
       const SESSION_KEY = 'vozen_admin_sess';
-      const OAUTH_TOKEN_KEY = 'vozen_admin_oauth';
-      const HELPER_RETURN_KEY = 'vozen_admin_helper_return';
-      const HELPER_RENEWED_KEY = 'vozen_admin_helper_renewed';
       const SESSION_IDLE_MS = 5 * 60 * 1000;
 
       let discordToken = ''; // token OAuth do Discord (só para o login)
@@ -641,7 +630,6 @@
         const m = location.hash.match(/access_token=([^&]+)/);
         if (m) {
           discordToken = decodeURIComponent(m[1]);
-          saveOAuthToken(discordToken);
           history.replaceState(null, '', REDIRECT_URI);
         }
       })();
@@ -731,58 +719,9 @@
         }
       }
 
-      function saveOAuthToken(token) {
-        if (!token) return;
-        try {
-          // Same tab and the same short lifetime as the private tracker session. This supports
-          // the Helper handoff after a refresh without persisting a Discord token indefinitely.
-          sessionStorage.setItem(OAUTH_TOKEN_KEY, token);
-        } catch (_e) {
-          /* storage blocked: the in-memory token still works until this page is closed */
-        }
-      }
-
-      function readStoredOAuthToken() {
-        const saved = readStoredSession();
-        if (!storedSessionIsFresh(saved)) return '';
-        try {
-          return sessionStorage.getItem(OAUTH_TOKEN_KEY) || '';
-        } catch (_e) {
-          return '';
-        }
-      }
-
-      function markHelperReturn() {
-        try { sessionStorage.setItem(HELPER_RETURN_KEY, '1'); } catch (_e) { /* best effort */ }
-      }
-
-      function consumeHelperReturn() {
-        try {
-          const shouldReturn = sessionStorage.getItem(HELPER_RETURN_KEY) === '1';
-          sessionStorage.removeItem(HELPER_RETURN_KEY);
-          return shouldReturn;
-        } catch (_e) {
-          return false;
-        }
-      }
-
-      async function renewHelperLoginOnce() {
-        try {
-          if (sessionStorage.getItem(HELPER_RENEWED_KEY) === '1') return false;
-          sessionStorage.setItem(HELPER_RENEWED_KEY, '1');
-        } catch (_e) {
-          return false;
-        }
-        beginHelperLogin();
-        return true;
-      }
-
       function clearStoredSession() {
         try {
           sessionStorage.removeItem(SESSION_KEY);
-          sessionStorage.removeItem(OAUTH_TOKEN_KEY);
-          sessionStorage.removeItem(HELPER_RETURN_KEY);
-          sessionStorage.removeItem(HELPER_RENEWED_KEY);
         } catch (_e) {
           /* sem armazenamento disponível */
         }
@@ -860,52 +799,6 @@
       $('discordBtn').addEventListener('click', () => (window.location.href = authUrl()));
       $('retryBtn').addEventListener('click', () => (window.location.href = authUrl()));
 
-      function beginHelperLogin() {
-        markHelperReturn();
-        window.location.href = authUrl();
-      }
-
-      function submitHelperHandoff(oauthToken) {
-        // A top-level form POST is first-party for api.vozen.org. Keep this as a
-        // separate fallback because privacy browsers can block a cross-origin
-        // preflight even when the navigation itself is allowed.
-        const form = document.createElement('form');
-        form.method = 'post';
-        form.action = HELPER_HANDOFF_URL;
-        form.style.display = 'none';
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'token';
-        input.value = oauthToken;
-        form.appendChild(input);
-        document.body.appendChild(form);
-        form.submit();
-      }
-
-      async function openHelperPanel() {
-        const oauthToken = discordToken || readStoredOAuthToken();
-        if (!oauthToken) {
-          beginHelperLogin();
-          return;
-        }
-        // A navigation POST is the complete handoff. It is first-party for
-        // api.vozen.org, sets the Helper cookie in the redirect, and avoids
-        // CORS/preflight and privacy-browser timing issues entirely.
-        try { sessionStorage.removeItem(HELPER_RENEWED_KEY); } catch (_e) { /* best effort */ }
-        submitHelperHandoff(oauthToken);
-      }
-
-      $('helperPanelLink').addEventListener('click', (event) => {
-        // Keep the anchor as a reliable fallback. If this tab no longer has a
-        // short-lived Discord token, let the official Helper route handle its
-        // normal Vozen account session instead of swallowing the click.
-        const oauthToken = discordToken || readStoredOAuthToken();
-        if (!oauthToken) return;
-        event.preventDefault();
-        try { sessionStorage.removeItem(HELPER_RENEWED_KEY); } catch (_e) { /* best effort */ }
-        submitHelperHandoff(oauthToken);
-      });
-
       // Login só com o token OAuth do Discord: o servidor confirma que a identidade é o dono
       // (OWNER_ID) e devolve a sessão. Sem password — quem não for o dono leva 403.
       async function doLogin() {
@@ -923,9 +816,6 @@
             sessionExpiresAt = Number(d.expiresAt) || 0;
             saveStoredSession();
             openPanel();
-            if (consumeHelperReturn()) {
-              await openHelperPanel();
-            }
             return;
           } catch (_e) {
             // Try the next API mount. A temporary Rust/legacy outage should not make
