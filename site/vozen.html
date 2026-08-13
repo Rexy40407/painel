@@ -672,11 +672,13 @@
           $('panelUser').textContent = 'sessão iniciada · Helper';
           $('guildsTitle').textContent = 'Servidores do Helper';
           $('topTalkersTitle').textContent = 'Atividade recente do Helper';
+          document.querySelector('#supabaseMetric .ops__label').textContent = 'Módulos Helper';
           document.title = 'Vozen · Painel · Helper';
         } else {
           helperLink.removeAttribute('aria-current');
           ttsLink.setAttribute('aria-current', 'page');
           $('guildsTitle').textContent = 'Servidores do Vozen';
+          document.querySelector('#supabaseMetric .ops__label').textContent = 'Supabase';
           $('topTalkersTitle').textContent = 'Top 10 — pessoas com mais mensagens';
         }
       }
@@ -1044,7 +1046,6 @@
       function renderHelperMetrics(data) {
         const health = data.health || {};
         const stats = data.stats || {};
-        const activity = Array.isArray(data.activity) ? data.activity : [];
         const features = Array.isArray(data.features) ? data.features : [];
         const enabled = features.filter((feature) => feature && feature.enabled).length;
         const runtimeOk = health.status === 'ok';
@@ -1059,6 +1060,29 @@
         $('databaseFill').style.transform = runtimeOk ? 'scaleX(1)' : 'scaleX(0)';
         $('databaseHistoryNote').textContent = 'Estado atual';
         renderDatabaseHistory([]);
+        // Helper storage comes from the authenticated Rust API, not the
+        // runtime health flag. Keep the health fallback above for old API
+        // releases, then replace it with real byte/volume metrics when sent.
+        const storage = stats.storage && typeof stats.storage === 'object' ? stats.storage : null;
+        const dbBytes = storage ? Number(storage.databaseBytes) : NaN;
+        const volumeUsed = storage ? Number(storage.volumeUsedBytes) : NaN;
+        const volumeFree = storage ? Number(storage.volumeAvailableBytes) : NaN;
+        const volumeTotal = storage ? Number(storage.volumeTotalBytes) : NaN;
+        if (Number.isFinite(dbBytes)) {
+          const state = Number.isFinite(volumeTotal) && Number.isFinite(volumeUsed)
+            ? storageState(volumeTotal, volumeUsed)
+            : { key: runtimeOk ? 'healthy' : 'unknown', label: runtimeOk ? 'Ligado' : 'Indisponível', percent: null };
+          $('databaseMetric').dataset.state = state.key;
+          $('databaseState').textContent = state.label;
+          $('databaseSize').textContent = formatBytes(dbBytes);
+          $('databaseDetail').textContent = state.percent === null
+            ? 'Espaço do volume indisponível nesta leitura.'
+            : 'Volume: ' + state.percent + '% utilizado · ' + formatBytes(volumeFree) + ' livres';
+          $('databaseExactSize').textContent = formatBytes(dbBytes);
+          $('databaseUsed').textContent = formatBytes(volumeUsed);
+          $('databaseFree').textContent = formatBytes(volumeFree);
+          $('databaseFill').style.transform = state.percent === null ? 'scaleX(0)' : 'scaleX(' + (state.percent / 100) + ')';
+        }
         $('supabaseMetric').dataset.state = features.length ? 'healthy' : 'unknown';
         $('supabaseState').textContent = features.length ? 'Ativos' : 'Sem leitura';
         $('supabaseSize').textContent = enabled + '/' + features.length;
@@ -1070,13 +1094,21 @@
         $('supabaseFill').style.transform = features.length ? 'scaleX(' + (enabled / features.length) + ')' : 'scaleX(0)';
         $('supabaseHistoryNote').textContent = 'Estado atual';
         renderSupabaseHistory([]);
-        $('activeSessions').textContent = String(activity.length);
-        $('activeSessionsDetail').textContent = activity.length === 1 ? '1 ação recente do Helper' : activity.length + ' ações recentes do Helper';
-        renderActiveServers([]);
-        $('outboxMetric').dataset.state = 'healthy';
-        $('outboxState').textContent = 'Em dia';
-        $('outboxRows').textContent = String(Math.max(0, Number(stats.totalCases) || 0));
-        $('outboxDetail').textContent = (Number(stats.totalCases) || 0) + ' casos registados no servidor selecionado';
+        const activeSessions = Number.isFinite(Number(stats.activeSessions)) ? Math.max(0, Number(stats.activeSessions)) : null;
+        if (activeSessions === null) {
+          $('activeSessions').textContent = '—';
+          $('activeSessionsDetail').textContent = 'Métrica de chamadas de voz indisponível no Helper';
+        } else {
+          $('activeSessions').textContent = String(activeSessions);
+          $('activeSessionsDetail').textContent = activeSessions === 1 ? '1 chamada de voz ativa agora' : activeSessions + ' chamadas de voz ativas agora';
+        }
+        renderActiveServers(Array.isArray(stats.activeServers) ? stats.activeServers : []);
+        const outbox = stats.outbox && typeof stats.outbox === 'object' ? stats.outbox : null;
+        const outboxRows = outbox && Number.isFinite(Number(outbox.pendingRows)) ? Math.max(0, Number(outbox.pendingRows)) : null;
+        $('outboxMetric').dataset.state = outboxRows === null ? 'unknown' : (outboxRows ? 'warn' : 'healthy');
+        $('outboxState').textContent = outboxRows === null ? 'Sem leitura' : (outboxRows ? 'Pendente' : 'Em dia');
+        $('outboxRows').textContent = outboxRows === null ? '—' : String(outboxRows);
+        $('outboxDetail').textContent = outboxRows === null ? 'Mirror PostgreSQL não configurado para o Helper' : (outboxRows ? formatBytes(outbox.pendingBytes) + ' a aguardar entrega' : 'Sem batches pendentes');
         $('metricsUpdated').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
       }
 
@@ -1388,7 +1420,7 @@
             guildRows = (Array.isArray(d.guilds) ? d.guilds : []).map((guild) => ({
               id: guild.id,
               name: guild.name || 'Servidor sem nome',
-              icon: guild.icon || '',
+              icon: guild.iconUrl || guild.icon || '',
               memberCount: guild.canManage ? 'Gerível' : 'Sem acesso',
               messages: '—',
               joinedTimestamp: 0,
@@ -1437,10 +1469,11 @@
           const nameTd = document.createElement('td');
           const wrap = document.createElement('div');
           wrap.className = 'gname';
-          const ic = document.createElement(g.icon ? 'img' : 'span');
+          const ic = document.createElement(g.iconUrl || g.icon ? 'img' : 'span');
           ic.className = 'gicon';
-          if (g.icon) {
-            ic.src = g.icon;
+          const iconUrl = g.iconUrl || g.icon || '';
+          if (iconUrl) {
+            ic.src = iconUrl;
             ic.alt = '';
             ic.loading = 'lazy';
           }
