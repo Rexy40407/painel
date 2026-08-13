@@ -996,7 +996,15 @@
       }
 
       async function ensureHelperSession() {
-        if (helperSession && helperSession.token) return true;
+        if (helperSession && helperSession.token) {
+          try {
+            await helperJson('/api/me');
+            return true;
+          } catch (error) {
+            if (error.status !== 401 && error.status !== 403) return false;
+            clearHelperSession();
+          }
+        }
         const token = discordToken || (() => {
           try { return sessionStorage.getItem(DISCORD_TOKEN_KEY) || ''; } catch (_e) { return ''; }
         })();
