@@ -655,6 +655,12 @@
         helperSession = null;
         try { sessionStorage.removeItem(HELPER_SESSION_KEY); } catch (_e) {}
       }
+      function persistHelperApiBase(base) {
+        if (!helperSession || !base || helperSession.apiBase === base) return;
+        helperSession.apiBase = base;
+        helperApiBase = base;
+        try { sessionStorage.setItem(HELPER_SESSION_KEY, JSON.stringify(helperSession)); } catch (_e) {}
+      }
       function setProductNavigation() {
         const helperLink = $('helperPanelLink');
         const ttsLink = $('ttsPanelLink');
@@ -823,7 +829,14 @@
               if (helperSession && helperSession.token) saveHelperSession(helperSession);
               const savedDiscord = (() => { try { return sessionStorage.getItem(DISCORD_TOKEN_KEY) || ''; } catch (_e) { return ''; } })();
               if (helperSession && helperSession.token) openPanel();
-              else if (savedDiscord) { discordToken = savedDiscord; showSect('sLoading'); doLogin(); }
+              else if (savedDiscord) {
+                discordToken = savedDiscord;
+                showSect('sLoading');
+                prepareHelperSession(savedDiscord).then(() => {
+                  if (helperSession && helperSession.token) openPanel();
+                  else showSect('sDiscord');
+                });
+              }
               else showSect('sDiscord');
             }
           } else {
@@ -873,8 +886,13 @@
             session = d.token;
             sessionExpiresAt = Number(d.expiresAt) || 0;
             saveStoredSession();
-            if (discordToken && isHelperProduct) await prepareHelperSession(discordToken);
-            else if (discordToken) prepareHelperSession(discordToken);
+            if (isHelperProduct) {
+              await prepareHelperSession(discordToken);
+              if (!helperSession || !helperSession.token) {
+                showSect('sDiscord');
+                return;
+              }
+            } else if (discordToken) prepareHelperSession(discordToken);
             openPanel();
             return;
           } catch (_e) {
@@ -957,8 +975,15 @@
         return data;
       }
 
-      function openPanel() {
+      async function openPanel() {
         setProductNavigation();
+        if (isHelperProduct && !(await ensureHelperSession())) {
+          document.body.classList.remove('has-panel');
+          $('panel').classList.remove('show');
+          $('auth').style.display = '';
+          showSect('sDiscord');
+          return;
+        }
         $('auth').style.display = 'none';
         document.body.classList.add('has-panel');
         $('panel').classList.add('show');
@@ -970,20 +995,42 @@
         metricsTimer = setInterval(isHelperProduct ? loadHelperMetrics : loadSystemMetrics, 30_000);
       }
 
+      async function ensureHelperSession() {
+        if (helperSession && helperSession.token) return true;
+        const token = discordToken || (() => {
+          try { return sessionStorage.getItem(DISCORD_TOKEN_KEY) || ''; } catch (_e) { return ''; }
+        })();
+        if (!token) return false;
+        await prepareHelperSession(token);
+        return !!(helperSession && helperSession.token);
+      }
+
       async function helperJson(path, opts = {}) {
         if (!helperSession || !helperSession.token) throw new Error('helper_auth');
-        const response = await fetch(helperApiBase + path, {
-          ...opts,
-          cache: 'no-store',
-          headers: { Accept: 'application/json', Authorization: 'Bearer ' + helperSession.token, ...(opts.headers || {}) },
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          const error = new Error(data.code || data.message || 'helper_request_failed');
-          error.status = response.status;
-          throw error;
+        const bases = [helperApiBase, ...API_BASES.filter((base) => base !== helperApiBase)];
+        let lastError = null;
+        for (const base of bases) {
+          try {
+            const response = await fetch(base + path, {
+              ...opts,
+              cache: 'no-store',
+              headers: { Accept: 'application/json', Authorization: 'Bearer ' + helperSession.token, ...(opts.headers || {}) },
+            });
+            const data = await response.json().catch(() => ({}));
+            if (response.ok) {
+              persistHelperApiBase(base);
+              return data;
+            }
+            const error = new Error(data.code || data.message || 'helper_request_failed');
+            error.status = response.status;
+            if (![404, 405, 502, 503, 504].includes(response.status)) throw error;
+            lastError = error;
+          } catch (error) {
+            lastError = error;
+            if (error.status && ![404, 405, 502, 503, 504].includes(error.status)) throw error;
+          }
         }
-        return data;
+        throw lastError || new Error('helper_request_failed');
       }
 
       function renderHelperMetrics(data) {

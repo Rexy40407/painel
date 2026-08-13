@@ -14,6 +14,9 @@ test('the private Vozen panel opens the private Helper tracker variant', () => {
   assert.match(page, /helperPanelLink/);
   assert.match(page, /id="guildsTitle"/);
   assert.match(page, /Servidores do Helper/);
+  assert.match(page, /const bases = \[helperApiBase/);
+  assert.match(page, /persistHelperApiBase\(base\)/);
+  assert.match(page, /ensureHelperSession\(\)/);
 });
 
 test('the private Helper tracker exchanges an owner OAuth token for a scoped API session', async () => {
