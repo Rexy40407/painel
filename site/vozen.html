@@ -602,6 +602,10 @@
       // Caddy exposes the Rust runtime at the API host root. Keep the former /rust mount as a
       // fallback for older VPS proxies so a migration never strands an existing panel session.
       const API_BASES = ['https://api.vozen.org', 'https://api.vozen.org/rust'];
+      // Helper's Rust runtime is mounted below /rust. Keep the legacy root as
+      // a fallback for older proxies, but never make a cached legacy session
+      // the primary source for Helper metrics.
+      const HELPER_API_BASES = ['https://api.vozen.org/rust', 'https://api.vozen.org'];
       let API_BASE = API_BASES[0];
       const HELPER_SESSION_KEY = 'vozen_helper_private_session';
       const DISCORD_TOKEN_KEY = 'vozen_panel_discord_token';
@@ -610,7 +614,7 @@
       const isHelperProduct = requestedProduct === 'helper' ||
         (location.hash.includes('access_token=') && (() => { try { return sessionStorage.getItem(PRODUCT_KEY) === 'helper'; } catch (_e) { return false; } })());
       let helperSession = null;
-      let helperApiBase = API_BASES[0];
+      let helperApiBase = HELPER_API_BASES[0];
       // Dedicated OAuth application for the owner-only administration panel.
       // Keep the TTS/Helper bot application IDs out of this login flow.
       const CLIENT_ID = '1534014665187655760';
@@ -648,7 +652,7 @@
       }
       function saveHelperSession(value) {
         helperSession = value;
-        helperApiBase = API_BASES.includes(value && value.apiBase) ? value.apiBase : API_BASES[0];
+        helperApiBase = HELPER_API_BASES.includes(value && value.apiBase) ? value.apiBase : HELPER_API_BASES[0];
         try { sessionStorage.setItem(HELPER_SESSION_KEY, JSON.stringify(value)); } catch (_e) {}
       }
       function clearHelperSession() {
@@ -656,7 +660,7 @@
         try { sessionStorage.removeItem(HELPER_SESSION_KEY); } catch (_e) {}
       }
       function persistHelperApiBase(base) {
-        if (!helperSession || !base || helperSession.apiBase === base) return;
+        if (!helperSession || !HELPER_API_BASES.includes(base) || helperSession.apiBase === base) return;
         helperSession.apiBase = base;
         helperApiBase = base;
         try { sessionStorage.setItem(HELPER_SESSION_KEY, JSON.stringify(helperSession)); } catch (_e) {}
@@ -1017,7 +1021,7 @@
 
       async function helperJson(path, opts = {}) {
         if (!helperSession || !helperSession.token) throw new Error('helper_auth');
-        const bases = [helperApiBase, ...API_BASES.filter((base) => base !== helperApiBase)];
+        const bases = [helperApiBase, ...HELPER_API_BASES.filter((base) => base !== helperApiBase)];
         let lastError = null;
         for (const base of bases) {
           try {
