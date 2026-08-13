@@ -1083,6 +1083,19 @@
           $('databaseFree').textContent = formatBytes(volumeFree);
           $('databaseFill').style.transform = state.percent === null ? 'scaleX(0)' : 'scaleX(' + (state.percent / 100) + ')';
         }
+        // Never present the Helper runtime health flag as a database size.
+        // Older API releases do not send storage metrics, so make that gap
+        // explicit instead of showing the misleading "Online" placeholder.
+        if (!Number.isFinite(dbBytes)) {
+          $('databaseMetric').dataset.state = 'unknown';
+          $('databaseState').textContent = 'Sem leitura';
+          $('databaseSize').textContent = '\u2014';
+          $('databaseDetail').textContent = 'N\\u00e3o foi poss\\u00edvel obter o espa\\u00e7o da base de dados.';
+          $('databaseExactSize').textContent = '\u2014';
+          $('databaseUsed').textContent = '\u2014';
+          $('databaseFree').textContent = '\u2014';
+          $('databaseFill').style.transform = 'scaleX(0)';
+        }
         $('supabaseMetric').dataset.state = features.length ? 'healthy' : 'unknown';
         $('supabaseState').textContent = features.length ? 'Ativos' : 'Sem leitura';
         $('supabaseSize').textContent = enabled + '/' + features.length;
