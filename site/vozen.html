@@ -652,7 +652,10 @@
       }
       function saveHelperSession(value) {
         helperSession = value;
-        helperApiBase = HELPER_API_BASES.includes(value && value.apiBase) ? value.apiBase : HELPER_API_BASES[0];
+        // Migrate sessions saved by older panel builds that preferred the
+        // legacy root. The Rust session contract is compatible and its stats
+        // endpoint is the one that exposes the product footprint.
+        helperApiBase = HELPER_API_BASES[0];
         try { sessionStorage.setItem(HELPER_SESSION_KEY, JSON.stringify(value)); } catch (_e) {}
       }
       function clearHelperSession() {

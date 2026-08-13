@@ -37,4 +37,5 @@ test('Helper metrics prefer the Rust runtime over the legacy root API', () => {
   assert.match(page, /const HELPER_API_BASES = \['https:\/\/api\.vozen\.org\/rust', 'https:\/\/api\.vozen\.org'\]/);
   assert.match(page, /let helperApiBase = HELPER_API_BASES\[0\]/);
   assert.match(page, /const bases = \[helperApiBase, \.\.\.HELPER_API_BASES\.filter/);
+  assert.match(page, /helperApiBase = HELPER_API_BASES\[0\];/);
 });
