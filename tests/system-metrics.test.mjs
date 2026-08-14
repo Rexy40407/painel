@@ -19,7 +19,7 @@ test('metrics use accessible disclosure controls, including active server names'
   assert.match(page, /id="supabaseDetails"/);
   assert.match(page, /id="activeServersDetails"/);
   assert.match(page, /<summary>/);
-  assert.match(page, /function renderActiveServers\(servers\)/);
+  assert.match(page, /function renderActiveServers\(servers, options = \{\}\)/);
   assert.match(page, /renderActiveServers\(metrics\.activeVoiceServers\)/);
 });
 

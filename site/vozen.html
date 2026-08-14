@@ -461,7 +461,7 @@
         </div>
         <div class="ops__sidebar">
           <article class="ops__metric ops__live" data-state="healthy">
-            <div class="ops__top"><span class="ops__label">Em simultâneo</span></div>
+            <div class="ops__top"><span class="ops__label" id="activeSessionsLabel">Em simultâneo</span></div>
             <div class="ops__live-value"><span class="ops__pulse" aria-hidden="true"></span><strong class="ops__value" id="activeSessions" aria-live="polite">—</strong></div>
             <p class="ops__detail" id="activeSessionsDetail">Chamadas de voz ativas agora</p>
             <details class="ops__details" id="activeServersDetails">
@@ -678,6 +678,8 @@
           ttsLink.removeAttribute('aria-current');
           $('panelUser').textContent = 'sessão iniciada · Helper';
           $('guildsTitle').textContent = 'Servidores do Helper';
+          $('activeSessionsLabel').textContent = 'Atividade do Helper';
+          $('activeSessionsDetail').textContent = 'Operações administrativas reportadas pela API';
           $('topTalkersTitle').textContent = 'Atividade recente do Helper';
           // Both Helper cards describe the product footprint. Keep module
           // activation as a secondary detail instead of presenting 0/52 as
@@ -688,6 +690,8 @@
           helperLink.removeAttribute('aria-current');
           ttsLink.setAttribute('aria-current', 'page');
           $('guildsTitle').textContent = 'Servidores do Vozen';
+          $('activeSessionsLabel').textContent = 'Em simultâneo';
+          $('activeSessionsDetail').textContent = 'Chamadas de voz ativas agora';
           document.querySelector('#supabaseMetric .ops__label').textContent = 'Supabase';
           $('topTalkersTitle').textContent = 'Top 10 — pessoas com mais mensagens';
         }
@@ -917,7 +921,10 @@
 
       async function prepareHelperSession(token) {
         if (!token) return;
-        for (const base of API_BASES) {
+        // The Helper session is issued by the Rust runtime. Try that mount
+        // first so a legacy TTS endpoint cannot win the race and leave the
+        // Helper panel with a token that cannot read its metrics.
+        for (const base of HELPER_API_BASES) {
           try {
             const response = await fetch(base + '/api/admin/private-tracker/session', {
               method: 'POST',
@@ -963,17 +970,39 @@
 
       // ── Painel ────────────────────────────────────────────────────
       async function api(path, opts = {}) {
-        const response = await fetch(API_BASE + path, {
-          ...opts,
-          headers: { authorization: 'Bearer ' + session, ...(opts.headers || {}) },
-        });
-        if (response.ok) touchStoredSession();
-        return response;
+        const bases = [API_BASE, ...API_BASES.filter((base) => base !== API_BASE)];
+        let lastResponse = null;
+        let lastError = null;
+        for (const base of bases) {
+          try {
+            const response = await fetch(base + path, {
+              ...opts,
+              cache: opts.cache || 'no-store',
+              headers: { authorization: 'Bearer ' + session, ...(opts.headers || {}) },
+            });
+            // Authentication and application errors are authoritative. Only
+            // retry mounts that are missing or temporarily unavailable.
+            if (response.ok || response.status === 401 || response.status === 403 ||
+                ![404, 405, 502, 503, 504].includes(response.status)) {
+              if (response.ok && base !== API_BASE) {
+                API_BASE = base;
+                saveStoredSession();
+              }
+              if (response.ok) touchStoredSession();
+              return response;
+            }
+            lastResponse = response;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        if (lastResponse) return lastResponse;
+        throw lastError || new Error('api_unavailable');
       }
 
       async function adminJson(path, opts = {}) {
         const response = await api(path, opts);
-        if (response.status === 403) {
+        if (response.status === 401 || response.status === 403) {
           logoutStale();
           throw new Error('auth');
         }
@@ -985,6 +1014,10 @@
           throw error;
         }
         return data;
+      }
+
+      function isAuthFailure(error) {
+        return error && (error.message === 'auth' || error.status === 401 || error.status === 403);
       }
 
       async function openPanel() {
@@ -1013,7 +1046,10 @@
             await helperJson('/api/me');
             return true;
           } catch (error) {
-            if (error.status !== 401 && error.status !== 403) return false;
+            // A transient API/network error must not send an already
+            // authenticated owner back through Discord OAuth. Keep the panel
+            // open so the metrics area can show an honest retry state.
+            if (error.status !== 401 && error.status !== 403) return true;
             clearHelperSession();
           }
         }
@@ -1075,11 +1111,11 @@
         // runtime health flag. Keep the health fallback above for old API
         // releases, then replace it with real byte/volume metrics when sent.
         const storage = stats.storage && typeof stats.storage === 'object' ? stats.storage : null;
-        const productBytes = storage ? Number(storage.productBytes) : NaN;
-        const dbBytes = storage ? Number(storage.databaseBytes) : NaN;
-        const volumeUsed = storage ? Number(storage.volumeUsedBytes) : NaN;
-        const volumeFree = storage ? Number(storage.volumeAvailableBytes) : NaN;
-        const volumeTotal = storage ? Number(storage.volumeTotalBytes) : NaN;
+        const productBytes = storage ? finiteNumber(storage.productBytes) : NaN;
+        const dbBytes = storage ? finiteNumber(storage.databaseBytes) : NaN;
+        const volumeUsed = storage ? finiteNumber(storage.volumeUsedBytes) : NaN;
+        const volumeFree = storage ? finiteNumber(storage.volumeAvailableBytes) : NaN;
+        const volumeTotal = storage ? finiteNumber(storage.volumeTotalBytes) : NaN;
         const displayedBytes = Number.isFinite(productBytes) ? productBytes : dbBytes;
         if (Number.isFinite(productBytes) || Number.isFinite(dbBytes)) {
           const state = Number.isFinite(volumeTotal) && Number.isFinite(volumeUsed)
@@ -1103,7 +1139,7 @@
           $('databaseMetric').dataset.state = 'unknown';
           $('databaseState').textContent = 'Sem leitura';
           $('databaseSize').textContent = '\u2014';
-          $('databaseDetail').textContent = 'N\\u00e3o foi poss\\u00edvel obter o espa\\u00e7o da base de dados.';
+          $('databaseDetail').textContent = 'Não foi possível obter o espaço da base de dados.';
           $('databaseExactSize').textContent = '\u2014';
           $('databaseUsed').textContent = '\u2014';
           $('databaseFree').textContent = '\u2014';
@@ -1127,17 +1163,19 @@
         $('supabaseFill').style.transform = helperStorageState.percent === null ? 'scaleX(0)' : 'scaleX(' + (helperStorageState.percent / 100) + ')';
         $('supabaseHistoryNote').textContent = 'Estado atual';
         renderSupabaseHistory([]);
-        const activeSessions = Number.isFinite(Number(stats.activeSessions)) ? Math.max(0, Number(stats.activeSessions)) : null;
+        const activeSessionsValue = finiteNumber(stats.activeSessions);
+        const activeSessions = Number.isFinite(activeSessionsValue) ? Math.max(0, activeSessionsValue) : null;
         if (activeSessions === null) {
           $('activeSessions').textContent = '—';
-          $('activeSessionsDetail').textContent = 'Métrica de chamadas de voz indisponível no Helper';
+          $('activeSessionsDetail').textContent = 'Métrica de operações ativas indisponível no Helper';
         } else {
           $('activeSessions').textContent = String(activeSessions);
-          $('activeSessionsDetail').textContent = activeSessions === 1 ? '1 chamada de voz ativa agora' : activeSessions + ' chamadas de voz ativas agora';
+          $('activeSessionsDetail').textContent = activeSessions === 1 ? '1 operação Helper ativa agora' : activeSessions + ' operações Helper ativas agora';
         }
-        renderActiveServers(Array.isArray(stats.activeServers) ? stats.activeServers : []);
+        renderActiveServers(Array.isArray(stats.activeServers) ? stats.activeServers : [], { helper: true });
         const outbox = stats.outbox && typeof stats.outbox === 'object' ? stats.outbox : null;
-        const outboxRows = outbox && Number.isFinite(Number(outbox.pendingRows)) ? Math.max(0, Number(outbox.pendingRows)) : null;
+        const pendingRows = outbox ? finiteNumber(outbox.pendingRows) : NaN;
+        const outboxRows = Number.isFinite(pendingRows) ? Math.max(0, pendingRows) : null;
         $('outboxMetric').dataset.state = outboxRows === null ? 'unknown' : (outboxRows ? 'warn' : 'healthy');
         $('outboxState').textContent = outboxRows === null ? 'Sem leitura' : (outboxRows ? 'Pendente' : 'Em dia');
         $('outboxRows').textContent = outboxRows === null ? '—' : String(outboxRows);
@@ -1151,9 +1189,20 @@
         refresh.disabled = true;
         refresh.classList.add('is-loading');
         try {
-          const [health, stats, activityData, featureData] = await Promise.all([
+          // Health and stats are required for the storage/runtime cards. The
+          // activity and feature catalogues are optional: an older Rust
+          // release or a transient 404 must not blank the entire dashboard.
+          const results = await Promise.allSettled([
             helperJson('/health'), helperJson('/api/stats'), helperJson('/api/activity?limit=24'), helperJson('/api/config/features'),
           ]);
+          const authFailure = results.find((result) => result.status === 'rejected' && (result.reason?.status === 401 || result.reason?.status === 403));
+          if (authFailure) throw authFailure.reason;
+          const requiredFailure = results.slice(0, 2).find((result) => result.status === 'rejected');
+          if (requiredFailure) throw requiredFailure.reason;
+          const health = results[0].value;
+          const stats = results[1].value;
+          const activityData = results[2].status === 'fulfilled' ? results[2].value : {};
+          const featureData = results[3].status === 'fulfilled' ? results[3].value : {};
           renderHelperMetrics({ health, stats, activity: activityData.activity, features: featureData.features });
         } catch (error) {
           if (error.status === 401 || error.status === 403) { clearHelperSession(); showSect('sDiscord'); return; }
@@ -1165,6 +1214,7 @@
       }
 
       function formatBytes(value) {
+        if (value === null || value === undefined || value === '') return '—';
         const bytes = Number(value);
         if (!Number.isFinite(bytes) || bytes < 0) return '—';
         if (bytes < 1024) return Math.round(bytes) + ' B';
@@ -1173,6 +1223,21 @@
         let unit = 0;
         while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; }
         return (size >= 10 ? size.toFixed(0) : size.toFixed(1)) + ' ' + units[unit];
+      }
+
+      function finiteNumber(value) {
+        if (value === null || value === undefined || value === '') return NaN;
+        const number = Number(value);
+        return Number.isFinite(number) ? number : NaN;
+      }
+
+      function guildIconUrl(guild) {
+        const id = guild && guild.id ? String(guild.id) : '';
+        const icon = guild && (guild.iconUrl || guild.icon_url || guild.icon);
+        if (!icon) return '';
+        if (/^https?:\/\//i.test(String(icon))) return String(icon);
+        if (!id) return '';
+        return 'https://cdn.discordapp.com/icons/' + encodeURIComponent(id) + '/' + encodeURIComponent(String(icon)) + '.png?size=64';
       }
 
       function storageState(total, used) {
@@ -1224,9 +1289,9 @@
           usage.className = 'ops__history-use';
           if (sample) {
             recorded += 1;
-            const state = storageState(Number(sample.volumeTotalBytes), Number(sample.volumeUsedBytes));
-            const productBytes = Number(sample.productBytes);
-            const databaseBytes = Number(sample.databaseBytes);
+            const state = storageState(finiteNumber(sample.volumeTotalBytes), finiteNumber(sample.volumeUsedBytes));
+            const productBytes = finiteNumber(sample.productBytes);
+            const databaseBytes = finiteNumber(sample.databaseBytes);
             const displayedBytes = Number.isFinite(productBytes) && productBytes > 0 ? productBytes : databaseBytes;
             totalProductBytes += Math.max(0, Number.isFinite(displayedBytes) ? displayedBytes : 0);
             if (state.percent !== null) {
@@ -1273,8 +1338,9 @@
           usage.className = 'ops__history-use';
           if (sample) {
             recorded += 1;
-            const state = storageState(Number(sample.capacityBytes), Number(sample.databaseBytes));
-            totalDatabaseBytes += Math.max(0, Number(sample.databaseBytes) || 0);
+            const state = storageState(finiteNumber(sample.capacityBytes), finiteNumber(sample.databaseBytes));
+            const databaseBytes = finiteNumber(sample.databaseBytes);
+            totalDatabaseBytes += Math.max(0, Number.isFinite(databaseBytes) ? databaseBytes : 0);
             if (state.percent !== null) {
               totalUsagePercent += state.percent;
               usageReadings += 1;
@@ -1298,7 +1364,7 @@
           : formatBytes(totalDatabaseBytes / recorded) + (usageReadings ? ' · ' + Math.round(totalUsagePercent / usageReadings) + '%' : '');
       }
 
-      function renderActiveServers(servers) {
+      function renderActiveServers(servers, options = {}) {
         const list = $('activeServers');
         list.replaceChildren();
         const entries = Array.isArray(servers) ? servers.filter((server) => server && typeof server.name === 'string') : [];
@@ -1306,7 +1372,9 @@
           const row = document.createElement('li');
           row.className = 'ops__history-row';
           row.dataset.state = 'unknown';
-          row.textContent = 'Nenhum servidor em chamada agora';
+          row.textContent = options.helper
+            ? 'O Helper não reporta chamadas de voz.'
+            : 'Nenhum servidor em chamada agora';
           list.append(row);
           return;
         }
@@ -1319,7 +1387,7 @@
           name.textContent = server.name;
           const status = document.createElement('span');
           status.className = 'ops__history-use';
-          status.textContent = 'em voz';
+          status.textContent = options.helper ? 'ativo' : 'em voz';
           row.append(name, status);
           list.append(row);
         }
@@ -1327,12 +1395,12 @@
 
       function renderSystemMetrics(metrics) {
         $('databaseLabel').textContent = 'Armazenamento do Vozen TTS';
-        const databaseBytes = Number(metrics.databaseBytes);
-        const productBytes = Number(metrics.productBytes);
+        const databaseBytes = finiteNumber(metrics.databaseBytes);
+        const productBytes = finiteNumber(metrics.productBytes);
         const displayedBytes = Number.isFinite(productBytes) ? productBytes : databaseBytes;
-        const total = Number(metrics.volumeTotalBytes);
-        const used = Number(metrics.volumeUsedBytes);
-        const available = Number(metrics.volumeAvailableBytes);
+        const total = finiteNumber(metrics.volumeTotalBytes);
+        const used = finiteNumber(metrics.volumeUsedBytes);
+        const available = finiteNumber(metrics.volumeAvailableBytes);
         const state = storageState(total, used);
         $('databaseMetric').dataset.state = state.key;
         $('databaseState').textContent = state.label;
@@ -1345,8 +1413,8 @@
           ? 'Pegada do TTS · volume VPS indisponível nesta leitura.'
           : 'Produto: ' + formatBytes(displayedBytes) + ' · VPS: ' + state.percent + '% utilizado · ' + formatBytes(available) + ' livres';
         const supabase = metrics && metrics.supabase && typeof metrics.supabase === 'object' ? metrics.supabase : null;
-        const supabaseBytes = supabase ? Number(supabase.databaseBytes) : NaN;
-        const supabaseCapacity = supabase ? Number(supabase.capacityBytes) : NaN;
+        const supabaseBytes = supabase ? finiteNumber(supabase.databaseBytes) : NaN;
+        const supabaseCapacity = supabase ? finiteNumber(supabase.capacityBytes) : NaN;
         const supabaseState = storageState(supabaseCapacity, supabaseBytes);
         $('supabaseMetric').dataset.state = supabaseState.key;
         $('supabaseState').textContent = supabaseState.percent === null ? 'Sem leitura' : supabaseState.label;
@@ -1362,21 +1430,23 @@
         $('supabaseDetail').textContent = supabaseState.percent === null
           ? 'Sem leitura: o mirror Supabase ainda não está ligado.'
           : 'Quota: ' + supabaseState.percent + '% utilizada · ' + formatBytes(Math.max(0, supabaseCapacity - supabaseBytes)) + ' livres';
-        const active = Math.max(0, Number(metrics.activeVoiceSessions) || 0);
-        $('activeSessions').textContent = String(active);
-        $('activeSessionsDetail').textContent = active === 1
-          ? '1 chamada de voz ativa agora'
-          : active + ' chamadas de voz ativas agora';
+        const active = finiteNumber(metrics.activeVoiceSessions);
+        $('activeSessions').textContent = Number.isFinite(active) ? String(Math.max(0, active)) : '—';
+        $('activeSessionsDetail').textContent = !Number.isFinite(active)
+          ? 'Métrica de chamadas de voz indisponível'
+          : (active === 1 ? '1 chamada de voz ativa agora' : active + ' chamadas de voz ativas agora');
         renderDatabaseHistory(metrics.databaseHistory);
         renderSupabaseHistory(supabase && supabase.history);
         renderActiveServers(metrics.activeVoiceServers);
         const outbox = metrics && metrics.postgresOutbox && typeof metrics.postgresOutbox === 'object'
           ? metrics.postgresOutbox : null;
-        const outboxRows = outbox ? Math.max(0, Number(outbox.pendingRows) || 0) : NaN;
+        const outboxPendingRows = outbox ? finiteNumber(outbox.pendingRows) : NaN;
+        const outboxRows = Number.isFinite(outboxPendingRows) ? Math.max(0, outboxPendingRows) : NaN;
         $('outboxRows').textContent = Number.isFinite(outboxRows) ? String(outboxRows) : '-';
-        $('outboxMetric').dataset.state = outbox ? (outboxRows ? 'warn' : 'healthy') : 'unknown';
-        $('outboxState').textContent = outbox ? (outboxRows ? 'Pendente' : 'Em dia') : 'Sem leitura';
-        $('outboxDetail').textContent = outbox
+        const outboxReadable = outbox && Number.isFinite(outboxRows);
+        $('outboxMetric').dataset.state = outboxReadable ? (outboxRows ? 'warn' : 'healthy') : 'unknown';
+        $('outboxState').textContent = outboxReadable ? (outboxRows ? 'Pendente' : 'Em dia') : 'Sem leitura';
+        $('outboxDetail').textContent = outboxReadable
           ? (outboxRows ? formatBytes(outbox.pendingBytes) + ' a aguardar entrega' : 'Sem batches pendentes')
           : 'Mirror PostgreSQL desativado ou sem leitura';
         $('metricsUpdated').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
@@ -1408,7 +1478,7 @@
         $('outboxDetail').textContent = 'Nao foi possivel obter a leitura agora.';
         renderDatabaseHistory([]);
         renderSupabaseHistory([]);
-        renderActiveServers([]);
+        renderActiveServers([], { helper: isHelperProduct });
         $('metricsUpdated').textContent = 'Tenta atualizar novamente.';
       }
 
@@ -1419,10 +1489,11 @@
         refresh.classList.add('is-loading');
         try {
           const r = await api('/api/admin/metrics');
-          if (r.status === 403) return logoutStale();
+          if (r.status === 401 || r.status === 403) return logoutStale();
           if (!r.ok) throw new Error('metrics_unavailable');
           renderSystemMetrics(await r.json());
-        } catch (_e) {
+        } catch (error) {
+          if (isAuthFailure(error)) return logoutStale();
           renderMetricsUnavailable();
         } finally {
           refresh.disabled = false;
@@ -1457,10 +1528,15 @@
         try {
           if (isHelperProduct) {
             d = await helperJson('/api/guilds');
-            guildRows = (Array.isArray(d.guilds) ? d.guilds : []).map((guild) => ({
+            guildRows = (Array.isArray(d.guilds) ? d.guilds : [])
+              // New Rust responses explicitly mark bot presence. Keep the
+              // guard for old responses where the field is absent, while
+              // never listing a guild known not to have Helper installed.
+              .filter((guild) => guild && guild.botPresent !== false && guild.bot_installed !== false)
+              .map((guild) => ({
               id: guild.id,
               name: guild.name || 'Servidor sem nome',
-              icon: guild.iconUrl || guild.icon || '',
+              icon: guildIconUrl(guild),
               memberCount: guild.canManage ? 'Gerível' : 'Sem acesso',
               messages: '—',
               joinedTimestamp: 0,
@@ -1475,8 +1551,9 @@
             return;
           }
           d = await adminJson('/api/admin/guilds');
-        } catch (_e) {
+        } catch (error) {
           serversLoaded = false; // permite tentar de novo
+          if (isAuthFailure(error)) return logoutStale();
           msg.className = 'msg bad';
           msg.textContent = 'Erro de rede.';
           return;
@@ -1509,13 +1586,19 @@
           const nameTd = document.createElement('td');
           const wrap = document.createElement('div');
           wrap.className = 'gname';
-          const iconUrl = g.iconUrl || g.icon || '';
+          const iconUrl = guildIconUrl(g);
           const ic = document.createElement(iconUrl ? 'img' : 'span');
           ic.className = 'gicon';
           if (iconUrl) {
             ic.src = iconUrl;
             ic.alt = '';
             ic.loading = 'lazy';
+            ic.addEventListener('error', () => {
+              const fallback = document.createElement('span');
+              fallback.className = 'gicon';
+              fallback.setAttribute('aria-hidden', 'true');
+              ic.replaceWith(fallback);
+            }, { once: true });
           }
           wrap.appendChild(ic);
           const nm = document.createElement('span');
@@ -1624,20 +1707,27 @@
         let d;
         try {
           if (isHelperProduct) {
-            d = await helperJson('/api/activity?limit=10');
+            d = await helperJson('/api/activity?limit=50');
             const activity = Array.isArray(d.activity) ? d.activity : [];
             const counts = new Map();
             for (const item of activity) {
-              const id = item.user_id || item.user_tag || 'Helper';
-              const current = counts.get(id) || { id, username: item.user_tag || id, total: 0, avatar: item.avatar || '' };
-              current.total += 1;
+              const id = String(item.user_id || item.userId || item.user_tag || item.userTag || 'Helper');
+              const username = item.user_tag || item.userTag || item.username || id;
+              const avatar = item.avatar || item.avatarUrl || item.avatar_url || '';
+              const rawCount = item.count ?? item.messages ?? item.messageCount ?? 1;
+              const total = Number.isFinite(Number(rawCount)) && Number(rawCount) >= 0 ? Number(rawCount) : 1;
+              const current = counts.get(id) || { id, username, total: 0, avatar };
+              if (!current.username || current.username === current.id) current.username = username;
+              if (!current.avatar && avatar) current.avatar = avatar;
+              current.total += total;
               counts.set(id, current);
             }
             renderTopTalkers([...counts.values()].sort((a, b) => b.total - a.total).slice(0, 10));
             return;
           }
           d = await adminJson('/api/admin/toptalkers');
-        } catch (_e) {
+        } catch (error) {
+          if (isAuthFailure(error)) return logoutStale();
           msg.className = 'msg bad';
           msg.textContent = 'Erro de rede.';
           return;
@@ -1752,7 +1842,8 @@
         try {
           const d = await adminJson('/api/admin/passes');
           renderPasses(d);
-        } catch (_e) {
+        } catch (error) {
+          if (isAuthFailure(error)) return logoutStale();
           $('grantMsg').className = 'msg bad';
           $('grantMsg').textContent = 'Não foi possível atualizar os passes. Tenta novamente.';
           return;
@@ -1842,7 +1933,7 @@
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify(body),
           });
-          if (r.status === 403) return logoutStale();
+          if (r.status === 401 || r.status === 403) return logoutStale();
           const d = await r.json().catch(() => ({}));
           if (!r.ok) {
             msg.classList.add('bad');
@@ -1853,7 +1944,8 @@
           msg.textContent = 'Concedido — expira ' + fmtDate(d.expiresAt) + '.';
           $('gId').value = '';
           loadPasses();
-        } catch (_e) {
+        } catch (error) {
+          if (isAuthFailure(error)) return logoutStale();
           msg.classList.add('bad');
           msg.textContent = 'Erro de rede.';
         }
@@ -1876,9 +1968,11 @@
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ kind, id }),
           });
+          if (r.status === 401 || r.status === 403) return logoutStale();
           if (!r.ok) throw new Error('revoke_failed');
           await loadPasses();
-        } catch (_e) {
+        } catch (error) {
+          if (isAuthFailure(error)) return logoutStale();
           btn.disabled = false;
           $('grantMsg').className = 'msg bad';
           $('grantMsg').textContent = 'Não foi possível revogar o passe.';
