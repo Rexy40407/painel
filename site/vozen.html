@@ -679,7 +679,10 @@
           $('panelUser').textContent = 'sessão iniciada · Helper';
           $('guildsTitle').textContent = 'Servidores do Helper';
           $('topTalkersTitle').textContent = 'Atividade recente do Helper';
-          document.querySelector('#supabaseMetric .ops__label').textContent = 'Módulos Helper';
+          // Both Helper cards describe the product footprint. Keep module
+          // activation as a secondary detail instead of presenting 0/52 as
+          // if it were storage usage.
+          document.querySelector('#supabaseMetric .ops__label').textContent = 'Armazenamento do Vozen Helper';
           document.title = 'Vozen · Painel · Helper';
         } else {
           helperLink.removeAttribute('aria-current');
@@ -1077,8 +1080,8 @@
         const volumeUsed = storage ? Number(storage.volumeUsedBytes) : NaN;
         const volumeFree = storage ? Number(storage.volumeAvailableBytes) : NaN;
         const volumeTotal = storage ? Number(storage.volumeTotalBytes) : NaN;
+        const displayedBytes = Number.isFinite(productBytes) ? productBytes : dbBytes;
         if (Number.isFinite(productBytes) || Number.isFinite(dbBytes)) {
-          const displayedBytes = Number.isFinite(productBytes) ? productBytes : dbBytes;
           const state = Number.isFinite(volumeTotal) && Number.isFinite(volumeUsed)
             ? storageState(volumeTotal, volumeUsed)
             : { key: runtimeOk ? 'healthy' : 'unknown', label: runtimeOk ? 'Ligado' : 'Indisponível', percent: null };
@@ -1106,15 +1109,22 @@
           $('databaseFree').textContent = '\u2014';
           $('databaseFill').style.transform = 'scaleX(0)';
         }
-        $('supabaseMetric').dataset.state = features.length ? 'healthy' : 'unknown';
-        $('supabaseState').textContent = features.length ? 'Ativos' : 'Sem leitura';
-        $('supabaseSize').textContent = enabled + '/' + features.length;
-        $('supabaseDetail').textContent = enabled + ' módulo' + (enabled === 1 ? '' : 's') + ' ativo' + (enabled === 1 ? '' : 's') + ' neste servidor';
-        $('supabaseExactSize').textContent = enabled + ' ativos';
+        const helperStorageState = Number.isFinite(volumeTotal) && Number.isFinite(volumeUsed)
+          ? storageState(volumeTotal, volumeUsed)
+          : { key: Number.isFinite(displayedBytes) ? 'healthy' : 'unknown', label: Number.isFinite(displayedBytes) ? 'Ligado' : 'Sem leitura', percent: null };
+        $('supabaseMetric').dataset.state = helperStorageState.key;
+        $('supabaseState').textContent = helperStorageState.label;
+        $('supabaseSize').textContent = Number.isFinite(displayedBytes) ? formatBytes(displayedBytes) : '—';
+        $('supabaseDetail').textContent = Number.isFinite(displayedBytes)
+          ? 'Produto: ' + formatBytes(displayedBytes) + (helperStorageState.percent === null ? '' : ' · VPS: ' + helperStorageState.percent + '% utilizado')
+          : 'Não foi possível obter o espaço do Helper.';
+        // Keep the Helper module count available in the disclosure instead
+        // of using it as the headline metric.
+        $('supabaseExactSize').textContent = enabled + '/' + features.length + ' módulos';
         $('supabaseQuota').textContent = features.length + ' disponíveis';
-        $('supabaseFree').textContent = String(Math.max(0, features.length - enabled)) + ' livres';
+        $('supabaseFree').textContent = String(Math.max(0, features.length - enabled)) + ' por ativar';
         $('supabaseAverage').textContent = '—';
-        $('supabaseFill').style.transform = features.length ? 'scaleX(' + (enabled / features.length) + ')' : 'scaleX(0)';
+        $('supabaseFill').style.transform = helperStorageState.percent === null ? 'scaleX(0)' : 'scaleX(' + (helperStorageState.percent / 100) + ')';
         $('supabaseHistoryNote').textContent = 'Estado atual';
         renderSupabaseHistory([]);
         const activeSessions = Number.isFinite(Number(stats.activeSessions)) ? Math.max(0, Number(stats.activeSessions)) : null;

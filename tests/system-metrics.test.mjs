@@ -39,3 +39,9 @@ test('Helper metrics prefer the Rust runtime over the legacy root API', () => {
   assert.match(page, /const bases = \[helperApiBase, \.\.\.HELPER_API_BASES\.filter/);
   assert.match(page, /helperApiBase = HELPER_API_BASES\[0\];/);
 });
+
+test('Helper uses product storage for both storage cards and keeps module count in details', () => {
+  assert.match(page, /document\.querySelector\('#supabaseMetric \.ops__label'\)\.textContent = 'Armazenamento do Vozen Helper'/);
+  assert.match(page, /supabaseSize.*formatBytes\(displayedBytes\)/s);
+  assert.match(page, /supabaseExactSize.*enabled \+ '\/' \+ features\.length/s);
+});
