@@ -46,3 +46,13 @@ test('Expired sessions are handled centrally without masking temporary outages',
   assert.match(page, /if \(response\.status === 401 \|\| response\.status === 403\) \{/);
   assert.match(page, /if \(error\.status !== 401 && error\.status !== 403\) return true/);
 });
+
+test('OAuth retries the existing Discord token and can recover a split API mount', () => {
+  assert.match(page, /let authInProgress = false/);
+  assert.match(page, /if \(discordToken\) \{\s*showSect\('sLoading'\);\s*doLogin\(\);/s);
+  assert.match(page, /let authResponse = null/);
+  assert.match(page, /authResponse \|\|= response/);
+  assert.match(page, /if \(authResponse\) return authResponse/);
+  assert.match(page, /cache: 'no-store'/);
+  assert.match(page, /Tentar validar novamente/);
+});

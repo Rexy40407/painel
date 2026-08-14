@@ -373,7 +373,7 @@
       <!-- Estado 3: negado -->
       <div class="sect" id="sDenied">
         <span class="badge badge--bad">● ACESSO NEGADO</span>
-        <p class="sub">Só a conta do dono tem acesso a esta consola.</p>
+        <p class="sub" id="deniedMessage">Só a conta do dono tem acesso a esta consola.</p>
         <button class="retry" id="retryBtn" type="button">Tentar de novo</button>
       </div>
 
@@ -632,6 +632,11 @@
       let sessionExpiresAt = 0;
       let sessionIdleTimer = null;
       let lastSessionTouch = 0;
+      let authInProgress = false;
+      // sessionStorage can be unavailable in a privacy-restricted browser. A
+      // successful in-memory session must not be thrown away just because the
+      // persistence check cannot read it back.
+      let sessionStorageWritable = true;
       let metricsTimer = null;
       const GUILDS_PER_PAGE = 25;
       let guildRows = [];
@@ -777,7 +782,9 @@
             last: Date.now(),
             expiresAt: sessionExpiresAt || 0,
           }));
+          sessionStorageWritable = true;
         } catch (_e) {
+          sessionStorageWritable = false;
           /* armazenamento bloqueado: a sessão continua apenas em memória */
         }
       }
@@ -816,8 +823,14 @@
       }
 
       function checkStoredSession() {
-        if (!session) return;
+        if (!session || authInProgress) return;
         const saved = readStoredSession();
+        // Do not log out a live session when the browser refused access to
+        // sessionStorage. The session is still valid in this page context.
+        if (!saved && !sessionStorageWritable) {
+          armSessionIdle();
+          return;
+        }
         if (!storedSessionIsFresh(saved)) logoutStale();
         else armSessionIdle();
       }
@@ -884,38 +897,75 @@
         window.location.href = authUrl();
       }
       $('discordBtn').addEventListener('click', startOAuth);
-      $('retryBtn').addEventListener('click', startOAuth);
+      $('retryBtn').addEventListener('click', () => {
+        // A Discord token returned by the implicit flow is still valid for a
+        // retry. Avoid another consent round when only the panel session or a
+        // temporary API mount failed.
+        if (discordToken) {
+          showSect('sLoading');
+          doLogin();
+        } else {
+          startOAuth();
+        }
+      });
 
       // Login só com o token OAuth do Discord: o servidor confirma que a identidade é o dono
       // (OWNER_ID) e devolve a sessão. Sem password — quem não for o dono leva 403.
       async function doLogin() {
-        for (const base of API_BASES) {
-          try {
-            const r = await fetch(base + '/api/admin/login', {
-              method: 'POST',
-              headers: { authorization: 'Bearer ' + discordToken },
-            });
-            if (!r.ok) continue;
-            const d = await r.json();
-            if (!d.token) continue;
-            API_BASE = base;
-            session = d.token;
-            sessionExpiresAt = Number(d.expiresAt) || 0;
-            saveStoredSession();
-            if (isHelperProduct) {
-              await prepareHelperSession(discordToken);
-              if (!helperSession || !helperSession.token) {
-                showSect('sDiscord');
-                return;
-              }
-            } else if (discordToken) prepareHelperSession(discordToken);
-            openPanel();
-            return;
-          } catch (_e) {
-            // Try the next API mount. A temporary Rust/legacy outage should not make
-            // the other healthy runtime impossible to use.
+        if (!discordToken || authInProgress) return;
+        authInProgress = true;
+        let lastStatus = 0;
+        let sawNetworkError = false;
+        try {
+          for (const base of API_BASES) {
+            try {
+              const r = await fetch(base + '/api/admin/login', {
+                method: 'POST',
+                headers: { authorization: 'Bearer ' + discordToken },
+                cache: 'no-store',
+              });
+              lastStatus = r.status;
+              if (!r.ok) continue;
+              const d = await r.json();
+              if (!d.token) continue;
+              API_BASE = base;
+              session = d.token;
+              sessionExpiresAt = Number(d.expiresAt) || 0;
+              saveStoredSession();
+              if (isHelperProduct) {
+                await prepareHelperSession(discordToken);
+                if (!helperSession || !helperSession.token) {
+                  showAuthFailure('A API do Helper não devolveu uma sessão. Tenta novamente em alguns segundos.');
+                  return;
+                }
+              } else if (discordToken) prepareHelperSession(discordToken);
+              await openPanel();
+              return;
+            } catch (_e) {
+              sawNetworkError = true;
+              // Try the next API mount. A temporary Rust/legacy outage should not make
+              // the other healthy runtime impossible to use.
+            }
           }
+          if (lastStatus === 403) {
+            showAuthFailure('O Discord autorizou a conta, mas a API não a reconheceu como proprietária deste painel.');
+          } else if (lastStatus === 429) {
+            showAuthFailure('Foram feitas demasiadas tentativas. Aguarda um minuto e tenta novamente.');
+          } else if (sawNetworkError || !lastStatus) {
+            showAuthFailure('Não foi possível contactar a API do painel. Tenta novamente em alguns segundos.');
+          } else {
+            showAuthFailure('A API recusou a sessão (HTTP ' + lastStatus + '). Tenta novamente.');
+          }
+        } finally {
+          authInProgress = false;
         }
+      }
+
+      function showAuthFailure(message) {
+        const label = $('deniedMessage');
+        if (label) label.textContent = message;
+        const button = $('retryBtn');
+        if (button) button.textContent = discordToken ? 'Tentar validar novamente' : 'Tentar de novo';
         showSect('sDenied');
       }
 
@@ -972,6 +1022,7 @@
       async function api(path, opts = {}) {
         const bases = [API_BASE, ...API_BASES.filter((base) => base !== API_BASE)];
         let lastResponse = null;
+        let authResponse = null;
         let lastError = null;
         for (const base of bases) {
           try {
@@ -980,10 +1031,15 @@
               cache: opts.cache || 'no-store',
               headers: { authorization: 'Bearer ' + session, ...(opts.headers || {}) },
             });
-            // Authentication and application errors are authoritative. Only
-            // retry mounts that are missing or temporarily unavailable.
-            if (response.ok || response.status === 401 || response.status === 403 ||
-                ![404, 405, 502, 503, 504].includes(response.status)) {
+            // A session can be valid on the login mount while a stale proxy
+            // routes a data request to the other runtime. Try every configured
+            // mount for auth failures before declaring the session invalid;
+            // if both reject it, return the auth response below.
+            if (response.status === 401 || response.status === 403) {
+              authResponse ||= response;
+              continue;
+            }
+            if (response.ok || ![404, 405, 502, 503, 504].includes(response.status)) {
               if (response.ok && base !== API_BASE) {
                 API_BASE = base;
                 saveStoredSession();
@@ -996,6 +1052,7 @@
             lastError = error;
           }
         }
+        if (authResponse) return authResponse;
         if (lastResponse) return lastResponse;
         throw lastError || new Error('api_unavailable');
       }
