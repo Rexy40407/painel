@@ -686,10 +686,9 @@
           $('activeSessionsLabel').textContent = 'Atividade do Helper';
           $('activeSessionsDetail').textContent = 'Operações administrativas reportadas pela API';
           $('topTalkersTitle').textContent = 'Atividade recente do Helper';
-          // Both Helper cards describe the product footprint. Keep module
-          // activation as a secondary detail instead of presenting 0/52 as
-          // if it were storage usage.
-          document.querySelector('#supabaseMetric .ops__label').textContent = 'Armazenamento do Vozen Helper';
+          // The second card always represents the shared Supabase mirror.
+          // Helper storage is shown only in the product card on the left.
+          document.querySelector('#supabaseMetric .ops__label').textContent = 'Supabase';
           document.title = 'Vozen · Painel · Helper';
         } else {
           helperLink.removeAttribute('aria-current');
@@ -1150,8 +1149,6 @@
         $('databaseLabel').textContent = 'Armazenamento do Vozen Helper';
         const health = data.health || {};
         const stats = data.stats || {};
-        const features = Array.isArray(data.features) ? data.features : [];
-        const enabled = features.filter((feature) => feature && feature.enabled).length;
         const runtimeOk = health.status === 'ok';
         $('databaseMetric').dataset.state = runtimeOk ? 'healthy' : 'unknown';
         $('databaseState').textContent = runtimeOk ? 'Ligado' : 'Indisponível';
@@ -1202,24 +1199,9 @@
           $('databaseFree').textContent = '\u2014';
           $('databaseFill').style.transform = 'scaleX(0)';
         }
-        const helperStorageState = Number.isFinite(volumeTotal) && Number.isFinite(volumeUsed)
-          ? storageState(volumeTotal, volumeUsed)
-          : { key: Number.isFinite(displayedBytes) ? 'healthy' : 'unknown', label: Number.isFinite(displayedBytes) ? 'Ligado' : 'Sem leitura', percent: null };
-        $('supabaseMetric').dataset.state = helperStorageState.key;
-        $('supabaseState').textContent = helperStorageState.label;
-        $('supabaseSize').textContent = Number.isFinite(displayedBytes) ? formatBytes(displayedBytes) : '—';
-        $('supabaseDetail').textContent = Number.isFinite(displayedBytes)
-          ? 'Produto: ' + formatBytes(displayedBytes) + (helperStorageState.percent === null ? '' : ' · VPS: ' + helperStorageState.percent + '% utilizado')
-          : 'Não foi possível obter o espaço do Helper.';
-        // Keep the Helper module count available in the disclosure instead
-        // of using it as the headline metric.
-        $('supabaseExactSize').textContent = enabled + '/' + features.length + ' módulos';
-        $('supabaseQuota').textContent = features.length + ' disponíveis';
-        $('supabaseFree').textContent = String(Math.max(0, features.length - enabled)) + ' por ativar';
-        $('supabaseAverage').textContent = '—';
-        $('supabaseFill').style.transform = helperStorageState.percent === null ? 'scaleX(0)' : 'scaleX(' + (helperStorageState.percent / 100) + ')';
-        $('supabaseHistoryNote').textContent = 'Estado atual';
-        renderSupabaseHistory([]);
+        // Supabase is a shared mirror, so Helper gets the same owner-only
+        // PostgreSQL reading as TTS instead of duplicating Helper storage.
+        renderSupabaseMetric(data.systemMetrics || stats);
         const activeSessionsValue = finiteNumber(stats.activeSessions);
         const activeSessions = Number.isFinite(activeSessionsValue) ? Math.max(0, activeSessionsValue) : null;
         if (activeSessions === null) {
@@ -1251,6 +1233,9 @@
           // release or a transient 404 must not blank the entire dashboard.
           const results = await Promise.allSettled([
             helperJson('/health'), helperJson('/api/stats'), helperJson('/api/activity?limit=24'), helperJson('/api/config/features'),
+            session
+              ? api('/api/admin/metrics').then((response) => response.ok ? response.json() : null).catch(() => null)
+              : Promise.resolve(null),
           ]);
           const authFailure = results.find((result) => result.status === 'rejected' && (result.reason?.status === 401 || result.reason?.status === 403));
           if (authFailure) throw authFailure.reason;
@@ -1260,7 +1245,8 @@
           const stats = results[1].value;
           const activityData = results[2].status === 'fulfilled' ? results[2].value : {};
           const featureData = results[3].status === 'fulfilled' ? results[3].value : {};
-          renderHelperMetrics({ health, stats, activity: activityData.activity, features: featureData.features });
+          const systemMetrics = results[4].status === 'fulfilled' ? results[4].value : null;
+          renderHelperMetrics({ health, stats, activity: activityData.activity, features: featureData.features, systemMetrics });
         } catch (error) {
           if (error.status === 401 || error.status === 403) { clearHelperSession(); showSect('sDiscord'); return; }
           renderMetricsUnavailable();
@@ -1450,6 +1436,28 @@
         }
       }
 
+      function renderSupabaseMetric(metrics) {
+        const supabase = metrics && metrics.supabase && typeof metrics.supabase === 'object' ? metrics.supabase : null;
+        const supabaseBytes = supabase ? finiteNumber(supabase.databaseBytes) : NaN;
+        const supabaseCapacity = supabase ? finiteNumber(supabase.capacityBytes) : NaN;
+        const supabaseState = storageState(supabaseCapacity, supabaseBytes);
+        $('supabaseMetric').dataset.state = supabaseState.key;
+        $('supabaseState').textContent = supabaseState.percent === null ? 'Sem leitura' : supabaseState.label;
+        $('supabaseSize').textContent = formatBytes(supabaseBytes);
+        $('supabaseExactSize').textContent = formatBytes(supabaseBytes);
+        $('supabaseQuota').textContent = formatBytes(supabaseCapacity);
+        $('supabaseFree').textContent = supabaseState.percent === null
+          ? '—'
+          : formatBytes(Math.max(0, supabaseCapacity - supabaseBytes));
+        $('supabaseFill').style.transform = supabaseState.percent === null
+          ? 'scaleX(0)'
+          : 'scaleX(' + (supabaseState.percent / 100) + ')';
+        $('supabaseDetail').textContent = supabaseState.percent === null
+          ? 'Sem leitura: o mirror Supabase ainda não está ligado.'
+          : 'Quota: ' + supabaseState.percent + '% utilizada · ' + formatBytes(Math.max(0, supabaseCapacity - supabaseBytes)) + ' livres';
+        renderSupabaseHistory(supabase && supabase.history);
+      }
+
       function renderSystemMetrics(metrics) {
         $('databaseLabel').textContent = 'Armazenamento do Vozen TTS';
         const databaseBytes = finiteNumber(metrics.databaseBytes);
@@ -1469,31 +1477,13 @@
         $('databaseDetail').textContent = state.percent === null
           ? 'Pegada do TTS · volume VPS indisponível nesta leitura.'
           : 'Produto: ' + formatBytes(displayedBytes) + ' · VPS: ' + state.percent + '% utilizado · ' + formatBytes(available) + ' livres';
-        const supabase = metrics && metrics.supabase && typeof metrics.supabase === 'object' ? metrics.supabase : null;
-        const supabaseBytes = supabase ? finiteNumber(supabase.databaseBytes) : NaN;
-        const supabaseCapacity = supabase ? finiteNumber(supabase.capacityBytes) : NaN;
-        const supabaseState = storageState(supabaseCapacity, supabaseBytes);
-        $('supabaseMetric').dataset.state = supabaseState.key;
-        $('supabaseState').textContent = supabaseState.percent === null ? 'Sem leitura' : supabaseState.label;
-        $('supabaseSize').textContent = formatBytes(supabaseBytes);
-        $('supabaseExactSize').textContent = formatBytes(supabaseBytes);
-        $('supabaseQuota').textContent = formatBytes(supabaseCapacity);
-        $('supabaseFree').textContent = supabaseState.percent === null
-          ? '—'
-          : formatBytes(Math.max(0, supabaseCapacity - supabaseBytes));
-        $('supabaseFill').style.transform = supabaseState.percent === null
-          ? 'scaleX(0)'
-          : 'scaleX(' + (supabaseState.percent / 100) + ')';
-        $('supabaseDetail').textContent = supabaseState.percent === null
-          ? 'Sem leitura: o mirror Supabase ainda não está ligado.'
-          : 'Quota: ' + supabaseState.percent + '% utilizada · ' + formatBytes(Math.max(0, supabaseCapacity - supabaseBytes)) + ' livres';
+        renderSupabaseMetric(metrics);
         const active = finiteNumber(metrics.activeVoiceSessions);
         $('activeSessions').textContent = Number.isFinite(active) ? String(Math.max(0, active)) : '—';
         $('activeSessionsDetail').textContent = !Number.isFinite(active)
           ? 'Métrica de chamadas de voz indisponível'
           : (active === 1 ? '1 chamada de voz ativa agora' : active + ' chamadas de voz ativas agora');
         renderDatabaseHistory(metrics.databaseHistory);
-        renderSupabaseHistory(supabase && supabase.history);
         renderActiveServers(metrics.activeVoiceServers);
         const outbox = metrics && metrics.postgresOutbox && typeof metrics.postgresOutbox === 'object'
           ? metrics.postgresOutbox : null;

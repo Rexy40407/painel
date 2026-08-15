@@ -40,8 +40,11 @@ test('Helper metrics prefer the Rust runtime over the legacy root API', () => {
   assert.match(page, /helperApiBase = HELPER_API_BASES\[0\];/);
 });
 
-test('Helper uses product storage for both storage cards and keeps module count in details', () => {
-  assert.match(page, /document\.querySelector\('#supabaseMetric \.ops__label'\)\.textContent = 'Armazenamento do Vozen Helper'/);
-  assert.match(page, /supabaseSize.*formatBytes\(displayedBytes\)/s);
-  assert.match(page, /supabaseExactSize.*enabled \+ '\/' \+ features\.length/s);
+test('Helper keeps product storage separate from the shared Supabase card', () => {
+  assert.match(page, /document\.querySelector\('#supabaseMetric \.ops__label'\)\.textContent = 'Supabase'/);
+  assert.doesNotMatch(page, /document\.querySelector\('#supabaseMetric \.ops__label'\)\.textContent = 'Armazenamento do Vozen Helper'/);
+  assert.match(page, /function renderSupabaseMetric\(metrics\)/);
+  assert.match(page, /renderSupabaseMetric\(data\.systemMetrics \|\| stats\)/);
+  assert.match(page, /supabase\.databaseBytes/);
+  assert.match(page, /api\('\/api\/admin\/metrics'\)/);
 });
