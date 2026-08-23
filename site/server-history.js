@@ -1,0 +1,66 @@
+(function attachServerHistory(root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) {
+    module.exports = api;
+  } else if (root) {
+    root.VozenServerHistory = api;
+  }
+}(typeof globalThis === 'object' ? globalThis : this, function createServerHistory() {
+  function normalizeTimestampMs(value) {
+    if (value instanceof Date) {
+      const time = value.getTime();
+      return Number.isFinite(time) && time > 0 ? time : null;
+    }
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      if (value <= 0) return null;
+      return value < 1e12 ? value * 1000 : value;
+    }
+
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = Date.parse(value);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    }
+
+    return null;
+  }
+
+  function timestampFromGuild(guild) {
+    if (!guild || typeof guild !== 'object') return null;
+    return normalizeTimestampMs(
+      guild.joinedTimestamp ?? guild.joined_timestamp ?? guild.joinedAt ?? guild.joined_at,
+    );
+  }
+
+  function utcDayKey(value) {
+    const timestamp = normalizeTimestampMs(value);
+    return timestamp === null ? null : new Date(timestamp).toISOString().slice(0, 10);
+  }
+
+  function buildServerJoinHistory(guilds, days) {
+    const requestedDays = Array.isArray(days)
+      ? days.filter((day) => typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day))
+      : [];
+    const counts = new Map(requestedDays.map((day) => [day, 0]));
+
+    for (const guild of Array.isArray(guilds) ? guilds : []) {
+      const day = utcDayKey(timestampFromGuild(guild));
+      if (day && counts.has(day)) counts.set(day, counts.get(day) + 1);
+    }
+
+    return requestedDays.map((day) => ({ day, count: counts.get(day) || 0 }));
+  }
+
+  function countServerJoinsToday(guilds, days) {
+    const history = buildServerJoinHistory(guilds, days);
+    return history.length ? history[history.length - 1].count : 0;
+  }
+
+  return {
+    normalizeTimestampMs,
+    timestampFromGuild,
+    utcDayKey,
+    buildServerJoinHistory,
+    countServerJoinsToday,
+  };
+}));

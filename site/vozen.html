@@ -259,7 +259,21 @@
       .server-count { display: inline-flex; align-items: baseline; gap: 7px; flex: none; padding: 7px 11px; border: 1px solid rgba(46, 230, 200, 0.24); border-radius: 999px; background: rgba(46, 230, 200, 0.08); color: var(--text-1); font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.02em; white-space: nowrap; }
       .server-count__value { color: var(--aqua); font-size: 14px; font-weight: 700; }
       .server-count__label { color: var(--text-2); }
+      .server-growth { display: flex; align-items: center; gap: 14px; margin: -3px 0 16px; padding: 10px 12px; border: 1px solid rgba(46, 230, 200, 0.16); border-radius: 12px; background: rgba(46, 230, 200, 0.035); }
+      .server-growth__today { display: inline-flex; align-items: baseline; gap: 8px; min-width: 0; }
+      .server-growth__label { color: var(--text-2); font: 700 10px var(--f-mono); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+      .server-growth__value { color: var(--aqua); font: 700 18px var(--f-mono); }
+      .server-growth__details { margin-left: auto; min-width: 154px; color: var(--text-1); }
+      .server-growth__details summary { cursor: pointer; list-style: none; color: var(--text-1); font-size: 12px; font-weight: 650; }
+      .server-growth__details summary::-webkit-details-marker { display: none; }
+      .server-growth__details summary::after { content: '⌄'; float: right; color: var(--text-2); font-size: 15px; line-height: 1; transition: transform .16s ease; }
+      .server-growth__details[open] summary::after { transform: rotate(180deg); }
+      .server-growth__history { display: grid; gap: 6px; margin: 10px 0 0; padding: 10px 0 0; border-top: 1px solid rgba(255, 255, 255, .07); list-style: none; }
+      .server-growth__row { display: flex; align-items: center; justify-content: space-between; gap: 14px; color: var(--text-2); font: 11px var(--f-mono); }
+      .server-growth__row-count { color: var(--aqua); font-weight: 700; white-space: nowrap; }
+      .server-growth__note { display: block; margin-top: 7px; color: var(--text-2); font: 10px var(--f-mono); }
       @media (max-width: 520px) { .box-head { align-items: flex-start; flex-direction: column; gap: 8px; } }
+      @media (max-width: 520px) { .server-growth { align-items: flex-start; flex-direction: column; gap: 9px; } .server-growth__details { width: 100%; min-width: 0; margin-left: 0; } }
       .grantgrid { display: grid; grid-template-columns: 130px 1fr 175px 150px auto; gap: 12px; align-items: end; }
       @media (max-width: 720px) { .grantgrid { grid-template-columns: 1fr 1fr; } }
       .grantgrid .field { margin-bottom: 0; }
@@ -555,6 +569,17 @@
                 <span class="server-count__label">servidores</span>
               </span>
             </div>
+            <div class="server-growth" aria-label="Servidores novos">
+              <div class="server-growth__today">
+                <span class="server-growth__label">Novos servidores hoje</span>
+                <strong class="server-growth__value" id="newGuildsToday" aria-live="polite">—</strong>
+              </div>
+              <details class="server-growth__details">
+                <summary>Últimos 7 dias</summary>
+                <ol class="server-growth__history" id="newGuildsHistory" aria-label="Servidores adicionados nos últimos 7 dias"></ol>
+                <span class="server-growth__note">Data de entrada · UTC</span>
+              </details>
+            </div>
             <div class="tblwrap">
               <table>
                 <thead>
@@ -598,6 +623,7 @@
       </div>
     </div>
 
+    <script src="server-history.js"></script>
     <script>
       // Caddy exposes the Rust runtime at the API host root. Keep the former /rust mount as a
       // fallback for older VPS proxies so a migration never strands an existing panel session.
@@ -639,6 +665,9 @@
       let sessionStorageWritable = true;
       let metricsTimer = null;
       const GUILDS_PER_PAGE = 25;
+      const serverHistory = window.VozenServerHistory || {};
+      const buildServerJoinHistory = serverHistory.buildServerJoinHistory || (() => []);
+      const countServerJoinsToday = serverHistory.countServerJoinsToday || (() => 0);
       let guildRows = [];
       let guildPage = 1;
 
@@ -1311,6 +1340,27 @@
           .replace('.', '');
       }
 
+      function renderServerGrowth(guilds) {
+        const guildList = Array.isArray(guilds) ? guilds : [];
+        const days = lastSevenUtcDays();
+        const history = buildServerJoinHistory(guildList, days);
+        const today = countServerJoinsToday(guildList, days);
+        $('newGuildsToday').textContent = String(today);
+        const list = $('newGuildsHistory');
+        list.replaceChildren();
+        for (const sample of [...history].reverse()) {
+          const row = document.createElement('li');
+          row.className = 'server-growth__row';
+          const day = document.createElement('span');
+          day.textContent = formatHistoryDay(sample.day);
+          const count = document.createElement('strong');
+          count.className = 'server-growth__row-count';
+          count.textContent = String(sample.count) + (sample.count === 1 ? ' servidor' : ' servidores');
+          row.append(day, count);
+          list.appendChild(row);
+        }
+      }
+
       function renderDatabaseHistory(samples) {
         const readings = new Map((Array.isArray(samples) ? samples : []).map((sample) => [sample.day, sample]));
         const history = $('databaseHistory');
@@ -1586,7 +1636,7 @@
               icon: guildIconUrl(guild),
               memberCount: guild.canManage ? 'Gerível' : 'Sem acesso',
               messages: '—',
-              joinedTimestamp: 0,
+              joinedTimestamp: guild.joinedTimestamp ?? guild.joined_timestamp ?? guild.joinedAt ?? guild.joined_at ?? 0,
               streak: 0,
               bestStreak: 0,
               helper: true,
@@ -1620,6 +1670,7 @@
 
       function renderGuilds(guilds) {
         $('guildsCount').textContent = String(guilds.length);
+        renderServerGrowth(guilds);
         const body = $('guildsBody');
         body.textContent = '';
         $('guildsEmpty').style.display = guilds.length ? 'none' : '';
