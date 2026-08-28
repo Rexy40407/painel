@@ -60,3 +60,18 @@ test('servers panel exposes today count and a seven-day disclosure', () => {
   assert.match(page, /renderServerGrowth\(guilds\)/);
   assert.match(page, /buildServerJoinHistory/);
 });
+
+test('private panel renders each product growth from its authenticated aggregate endpoint', () => {
+  assert.match(page, /id="growthDashboard"/);
+  assert.match(page, /data-growth-range="7"/);
+  assert.match(page, /data-growth-range="30"/);
+  assert.match(page, /data-growth-range="90"/);
+  assert.match(page, /function loadGrowthMetrics\(\)/);
+  assert.match(page, /product=' \+ \(isHelperProduct \? 'helper' : 'tts'\)/);
+  assert.match(page, /isHelperProduct \? helperJson\(path\) : adminJson\(path\)/);
+  assert.match(page, /Sem IDs de servidores ou utilizadores/);
+  assert.match(page, /growthTopggPanel'\)\.hidden = isHelperProduct/);
+  assert.match(page, /function loadWebAnalytics\(\)/);
+  assert.match(page, /adminJson\('\/api\/admin\/web-analytics\?from='/);
+  assert.match(page, /A configuração e o token continuam apenas no servidor/);
+});

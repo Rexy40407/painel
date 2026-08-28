@@ -272,6 +272,34 @@
       .server-growth__row { display: flex; align-items: center; justify-content: space-between; gap: 14px; color: var(--text-2); font: 11px var(--f-mono); }
       .server-growth__row-count { color: var(--aqua); font-weight: 700; white-space: nowrap; }
       .server-growth__note { display: block; margin-top: 7px; color: var(--text-2); font: 10px var(--f-mono); }
+      .growth-dashboard { margin: 22px 0; padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: linear-gradient(145deg, rgba(20,23,43,.96), rgba(12,14,27,.96)); }
+      .growth-dashboard[hidden] { display: none; }
+      .growth-dashboard__head { display: flex; align-items: start; justify-content: space-between; gap: 18px; }
+      .growth-dashboard__head h2 { margin: 0; font-size: 18px; }
+      .growth-dashboard__head p { margin: 6px 0 0; color: var(--text-2); font-size: 13px; line-height: 1.45; }
+      .growth-dashboard__controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+      .growth-range { min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; color: var(--text-2); background: transparent; font: 700 11px var(--f-mono); cursor: pointer; }
+      .growth-range:hover, .growth-range:focus-visible, .growth-range.is-active { color: var(--aqua); border-color: rgba(46,230,200,.65); outline: none; }
+      .growth-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 20px; }
+      .growth-card { min-width: 0; min-height: 116px; padding: 14px; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; background: rgba(4,6,16,.31); }
+      .growth-card__label { display: block; color: var(--text-2); font: 700 10px var(--f-mono); letter-spacing: .09em; text-transform: uppercase; }
+      .growth-card__value { display: block; margin-top: 12px; color: var(--text-1); font: 700 27px/1 var(--f-mono); letter-spacing: -.055em; }
+      .growth-card__detail { display: block; min-height: 18px; margin-top: 8px; color: var(--text-2); font-size: 11px; line-height: 1.35; }
+      .growth-card__value.is-positive { color: var(--aqua); }
+      .growth-card__value.is-warning { color: var(--amber); }
+      .growth-dashboard__lower { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 12px; margin-top: 13px; }
+      .growth-panel { min-width: 0; padding: 14px; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; background: rgba(4,6,16,.22); }
+      .growth-panel h3 { margin: 0 0 12px; color: var(--text-1); font-size: 13px; }
+      .growth-funnel, .growth-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+      .growth-funnel__row, .growth-list__row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; color: var(--text-2); font-size: 12px; }
+      .growth-funnel__row strong, .growth-list__row strong { color: var(--text-1); font-family: var(--f-mono); }
+      .growth-funnel__bar { grid-column: 1 / -1; height: 5px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.1); }
+      .growth-funnel__bar i { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--aqua), #6672ff); transition: width .25s ease; }
+      .growth-status { margin: 9px 0 0; color: var(--text-2); font: 11px/1.45 var(--f-mono); }
+      .growth-dashboard[data-state="loading"] .growth-card__value { color: var(--text-2); }
+      .growth-dashboard[data-state="error"] { border-color: rgba(255,110,169,.48); }
+      @media (max-width: 920px) { .growth-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } .growth-dashboard__lower { grid-template-columns: 1fr; } }
+      @media (max-width: 520px) { .growth-dashboard { padding: 16px; } .growth-dashboard__head { align-items: stretch; flex-direction: column; } .growth-cards { grid-template-columns: 1fr; } .growth-range { flex: 1; } }
       @media (max-width: 520px) { .box-head { align-items: flex-start; flex-direction: column; gap: 8px; } }
       @media (max-width: 520px) { .server-growth { align-items: flex-start; flex-direction: column; gap: 9px; } .server-growth__details { width: 100%; min-width: 0; margin-left: 0; } }
       .grantgrid { display: grid; grid-template-columns: 130px 1fr 175px 150px auto; gap: 12px; align-items: end; }
@@ -496,6 +524,53 @@
         </button>
       </section>
 
+      <section class="growth-dashboard" id="growthDashboard" data-state="loading" aria-labelledby="growthTitle">
+        <div class="growth-dashboard__head">
+          <div>
+            <h2 id="growthTitle">Crescimento do TTS</h2>
+            <p>Funil first-party por servidor. Sem IDs de servidores ou utilizadores.</p>
+          </div>
+          <div class="growth-dashboard__controls" aria-label="Período das métricas de crescimento">
+            <button class="growth-range" data-growth-range="7" type="button">7 dias</button>
+            <button class="growth-range is-active" data-growth-range="30" type="button">30 dias</button>
+            <button class="growth-range" data-growth-range="90" type="button">90 dias</button>
+          </div>
+        </div>
+        <div class="growth-cards">
+          <article class="growth-card"><span class="growth-card__label">Entradas líquidas</span><strong class="growth-card__value" id="growthNet">—</strong><small class="growth-card__detail" id="growthJoins">A carregar</small></article>
+          <article class="growth-card"><span class="growth-card__label">Setup concluído</span><strong class="growth-card__value" id="growthSetupRate">—</strong><small class="growth-card__detail" id="growthSetupDetail">A carregar</small></article>
+          <article class="growth-card"><span class="growth-card__label">Primeiro valor</span><strong class="growth-card__value" id="growthActivationRate">—</strong><small class="growth-card__detail" id="growthActivationDetail">A carregar</small></article>
+          <article class="growth-card"><span class="growth-card__label">Retenção</span><strong class="growth-card__value" id="growthRetention">—</strong><small class="growth-card__detail" id="growthRetentionDetail">A carregar</small></article>
+        </div>
+        <div class="growth-dashboard__lower">
+          <article class="growth-panel"><h3>Funil de ativação</h3><ol class="growth-funnel" id="growthFunnel" aria-label="Funil de ativação"></ol></article>
+          <article class="growth-panel"><h3>Origens</h3><ol class="growth-list" id="growthSources" aria-label="Origens de instalação"></ol></article>
+          <article class="growth-panel" id="growthTopggPanel"><h3>Top.gg</h3><ol class="growth-list" id="growthTopgg" aria-label="Estado da sincronização Top.gg"></ol></article>
+        </div>
+        <p class="growth-status" id="growthStatus" aria-live="polite">A carregar métricas de crescimento…</p>
+      </section>
+
+      <section class="growth-dashboard" id="webAnalyticsDashboard" data-state="loading" aria-labelledby="webAnalyticsTitle">
+        <div class="growth-dashboard__head">
+          <div>
+            <h2 id="webAnalyticsTitle">Tráfego público</h2>
+            <p>Cloudflare Web Analytics, agregado e sem cookies. Esta leitura nunca inclui IDs de servidores ou utilizadores.</p>
+          </div>
+        </div>
+        <div class="growth-cards">
+          <article class="growth-card"><span class="growth-card__label">Visitas</span><strong class="growth-card__value" id="webAnalyticsVisits">—</strong><small class="growth-card__detail">Entradas em páginas públicas</small></article>
+          <article class="growth-card"><span class="growth-card__label">Páginas vistas</span><strong class="growth-card__value" id="webAnalyticsPageViews">—</strong><small class="growth-card__detail">Medição real de browser</small></article>
+          <article class="growth-card"><span class="growth-card__label">LCP p75</span><strong class="growth-card__value" id="webAnalyticsLcp">—</strong><small class="growth-card__detail" id="webAnalyticsLcpDetail">Objetivo &lt; 2,5 s</small></article>
+          <article class="growth-card"><span class="growth-card__label">INP / CLS p75</span><strong class="growth-card__value" id="webAnalyticsInpCls">—</strong><small class="growth-card__detail" id="webAnalyticsVitalsDetail">Objetivos &lt; 200 ms / &lt; 0,1</small></article>
+        </div>
+        <div class="growth-dashboard__lower">
+          <article class="growth-panel"><h3>Páginas principais</h3><ol class="growth-list" id="webAnalyticsPages" aria-label="Páginas públicas mais vistas"></ol></article>
+          <article class="growth-panel"><h3>Referências</h3><ol class="growth-list" id="webAnalyticsReferrers" aria-label="Principais referências"></ol></article>
+          <article class="growth-panel"><h3>Dispositivos</h3><ol class="growth-list" id="webAnalyticsDevices" aria-label="Dispositivos dos visitantes"></ol></article>
+        </div>
+        <p class="growth-status" id="webAnalyticsStatus" aria-live="polite">A carregar tráfego público…</p>
+      </section>
+
       <!-- Tab: Passes -->
       <div id="paneGrants">
         <div class="box">
@@ -670,6 +745,7 @@
       const countServerJoinsToday = serverHistory.countServerJoinsToday || (() => 0);
       let guildRows = [];
       let guildPage = 1;
+      let growthDays = 30;
 
       // Captura o token do fragmento (#access_token=…) após o redirect do OAuth e limpa o URL.
       (function () {
@@ -728,6 +804,10 @@
           document.querySelector('#supabaseMetric .ops__label').textContent = 'Supabase';
           $('topTalkersTitle').textContent = 'Top 10 — pessoas com mais mensagens';
         }
+        $('growthDashboard').hidden = false;
+        $('growthTitle').textContent = isHelperProduct ? 'Crescimento do Helper' : 'Crescimento do TTS';
+        $('growthTopggPanel').hidden = isHelperProduct;
+        $('webAnalyticsDashboard').hidden = isHelperProduct;
       }
 
       const authUrl = () =>
@@ -1119,10 +1199,21 @@
         $('panel').classList.add('show');
         armSessionIdle();
         loadPasses();
-        if (isHelperProduct) loadHelperMetrics();
-        else loadSystemMetrics();
+        if (isHelperProduct) { loadHelperMetrics(); loadGrowthMetrics(); }
+        else {
+          loadSystemMetrics();
+          loadGrowthMetrics();
+          loadWebAnalytics();
+        }
         clearInterval(metricsTimer);
-        metricsTimer = setInterval(isHelperProduct ? loadHelperMetrics : loadSystemMetrics, 30_000);
+        metricsTimer = setInterval(() => {
+          if (isHelperProduct) { loadHelperMetrics(); loadGrowthMetrics(); }
+          else {
+            loadSystemMetrics();
+            loadGrowthMetrics();
+            loadWebAnalytics();
+          }
+        }, 30_000);
       }
 
       async function ensureHelperSession() {
@@ -1339,6 +1430,203 @@
           .format(new Date(day + 'T00:00:00Z'))
           .replace('.', '');
       }
+
+      function growthDateRange(days) {
+        const to = new Date();
+        to.setUTCHours(0, 0, 0, 0);
+        const from = new Date(to);
+        from.setUTCDate(from.getUTCDate() - Math.max(0, days - 1));
+        return [from.toISOString().slice(0, 10), to.toISOString().slice(0, 10)];
+      }
+
+      function growthPercent(numerator, denominator) {
+        if (!Number.isFinite(Number(numerator)) || !Number.isFinite(Number(denominator)) || Number(denominator) <= 0) return '—';
+        return Math.round((Number(numerator) / Number(denominator)) * 100) + '%';
+      }
+
+      function replaceGrowthRows(id, rows, emptyText) {
+        const list = $(id);
+        list.replaceChildren();
+        const items = Array.isArray(rows) && rows.length ? rows : [[emptyText, '—']];
+        items.forEach(([label, value]) => {
+          const row = document.createElement('li');
+          row.className = 'growth-list__row';
+          const name = document.createElement('span');
+          name.textContent = label;
+          const metric = document.createElement('strong');
+          metric.textContent = value;
+          row.append(name, metric);
+          list.append(row);
+        });
+      }
+
+      function renderGrowthFunnel(data) {
+        const joins = Math.max(0, Number(data.joins) || 0);
+        const rows = [
+          ['Entradas', joins],
+          ['Setup concluído', Math.max(0, Number(data.setupCompleted) || 0)],
+          ['Primeiro valor', Math.max(0, Number(data.firstValue) || 0)],
+        ];
+        const list = $('growthFunnel');
+        list.replaceChildren();
+        rows.forEach(([label, value]) => {
+          const row = document.createElement('li');
+          row.className = 'growth-funnel__row';
+          const name = document.createElement('span');
+          name.textContent = label;
+          const metric = document.createElement('strong');
+          metric.textContent = String(value);
+          const bar = document.createElement('span');
+          bar.className = 'growth-funnel__bar';
+          const fill = document.createElement('i');
+          fill.style.width = joins ? Math.min(100, Math.round((value / joins) * 100)) + '%' : '0%';
+          bar.append(fill);
+          row.append(name, metric, bar);
+          list.append(row);
+        });
+      }
+
+      function formatGrowthTimestamp(timestamp) {
+        const value = Number(timestamp);
+        if (!Number.isFinite(value) || value <= 0) return 'sem sincronização';
+        return new Intl.DateTimeFormat('pt-PT', { dateStyle: 'short', timeStyle: 'short', timeZone: 'UTC' }).format(new Date(value));
+      }
+
+      function renderGrowthMetrics(data) {
+        const dashboard = $('growthDashboard');
+        dashboard.dataset.state = 'ready';
+        const joins = Math.max(0, Number(data.joins) || 0);
+        const leaves = Math.max(0, Number(data.leaves) || 0);
+        const net = Number(data.net) || 0;
+        $('growthNet').textContent = (net > 0 ? '+' : '') + String(net);
+        $('growthNet').className = 'growth-card__value ' + (net > 0 ? 'is-positive' : net < 0 ? 'is-warning' : '');
+        $('growthJoins').textContent = joins + ' entradas · ' + leaves + ' saídas · ' + (Number(data.currentGuilds) || 0) + ' atuais';
+        $('growthSetupRate').textContent = growthPercent(data.setupCompleted, joins);
+        $('growthSetupDetail').textContent = (Number(data.setupCompleted) || 0) + ' setups concluídos';
+        $('growthActivationRate').textContent = growthPercent(data.firstValue, joins);
+        $('growthActivationDetail').textContent = (Number(data.firstValue) || 0) + (isHelperProduct ? ' primeiras ações úteis' : ' primeiras reproduções');
+        const w7 = data.retainedW7Rate === null || data.retainedW7Rate === undefined
+          ? growthPercent(data.retainedW7, data.eligibleW7)
+          : Math.round(Number(data.retainedW7Rate) * 100) + '%';
+        const w30 = data.retainedW30Rate === null || data.retainedW30Rate === undefined
+          ? growthPercent(data.retainedW30, data.eligibleW30)
+          : Math.round(Number(data.retainedW30Rate) * 100) + '%';
+        $('growthRetention').textContent = 'W7 ' + w7;
+        $('growthRetentionDetail').textContent = 'W30 ' + w30 + ' · coortes elegíveis apenas';
+        renderGrowthFunnel(data);
+
+        const sourceCounts = new Map();
+        (Array.isArray(data.daily) ? data.daily : []).forEach((row) => {
+          const source = String(row && row.source || 'unknown');
+          sourceCounts.set(source, (sourceCounts.get(source) || 0) + (Number(row && row.joins) || 0));
+        });
+        replaceGrowthRows('growthSources', [...sourceCounts.entries()]
+          .sort((left, right) => right[1] - left[1])
+          .slice(0, 5)
+          .map(([source, count]) => [source, String(count)]), 'Sem origens neste período');
+
+        const topgg = data.topgg && typeof data.topgg === 'object' ? data.topgg : null;
+        if (!topgg) {
+          replaceGrowthRows('growthTopgg', [['Não configurado', '—']], 'Não configurado');
+        } else {
+          const failures = Math.max(0, Number(topgg.consecutiveFailures) || 0);
+          replaceGrowthRows('growthTopgg', [
+            ['Estado', topgg.alert ? 'Alerta: rever agora' : 'Saudável'],
+            ['Último sucesso', formatGrowthTimestamp(topgg.lastSuccessAt)],
+            ['HTTP / falhas', (topgg.lastStatus || '—') + ' / ' + failures],
+            ['Servidores enviados', String(topgg.lastServerCount ?? '—')],
+            ['Diferença desde envio', topgg.driftPercent === null || topgg.driftPercent === undefined ? '—' : (Number(topgg.driftPercent) * 100).toLocaleString('pt-PT', { maximumFractionDigits: 1 }) + '%'],
+          ], 'Sem estado');
+        }
+        $('growthStatus').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) + ' · dados agregados por servidor';
+      }
+
+      function renderGrowthUnavailable() {
+        const dashboard = $('growthDashboard');
+        dashboard.dataset.state = 'error';
+        ['growthNet', 'growthSetupRate', 'growthActivationRate', 'growthRetention'].forEach((id) => { $(id).textContent = '—'; });
+        $('growthJoins').textContent = 'Não foi possível obter entradas e saídas';
+        $('growthSetupDetail').textContent = 'Tenta atualizar novamente';
+        $('growthActivationDetail').textContent = 'Tenta atualizar novamente';
+        $('growthRetentionDetail').textContent = 'Tenta atualizar novamente';
+        replaceGrowthRows('growthSources', [], 'Dados indisponíveis');
+        replaceGrowthRows('growthTopgg', [], 'Dados indisponíveis');
+        $('growthFunnel').replaceChildren();
+        $('growthStatus').textContent = 'Erro ao carregar crescimento. A sessão e os IDs continuam privados.';
+      }
+
+      async function loadGrowthMetrics() {
+        if ((!isHelperProduct && !session) || (isHelperProduct && (!helperSession || !helperSession.token))) return;
+        const dashboard = $('growthDashboard');
+        dashboard.dataset.state = 'loading';
+        const [from, to] = growthDateRange(growthDays);
+        try {
+          const path = '/api/admin/growth?product=' + (isHelperProduct ? 'helper' : 'tts') + '&from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to);
+          const data = await (isHelperProduct ? helperJson(path) : adminJson(path));
+          renderGrowthMetrics(data || {});
+        } catch (error) {
+          if (isAuthFailure(error)) return logoutStale();
+          renderGrowthUnavailable();
+        }
+      }
+
+      function compactMetric(value) {
+        return new Intl.NumberFormat('pt-PT', { notation: 'compact', maximumFractionDigits: 1 }).format(Math.max(0, Number(value) || 0));
+      }
+
+      function renderWebAnalytics(data) {
+        const dashboard = $('webAnalyticsDashboard');
+        dashboard.dataset.state = 'ready';
+        $('webAnalyticsVisits').textContent = compactMetric(data.visits);
+        $('webAnalyticsPageViews').textContent = compactMetric(data.pageViews);
+        const vitals = data.coreWebVitals && typeof data.coreWebVitals === 'object' ? data.coreWebVitals : {};
+        const lcp = Number(vitals.lcpP75Ms);
+        const inp = Number(vitals.inpP75Ms);
+        const cls = Number(vitals.clsP75);
+        $('webAnalyticsLcp').textContent = Number.isFinite(lcp) && lcp >= 0 ? (lcp / 1000).toLocaleString('pt-PT', { maximumFractionDigits: 2 }) + ' s' : '—';
+        $('webAnalyticsInpCls').textContent = (Number.isFinite(inp) && inp >= 0 ? Math.round(inp) + ' ms' : '—') + ' / ' + (Number.isFinite(cls) && cls >= 0 ? cls.toLocaleString('pt-PT', { maximumFractionDigits: 3 }) : '—');
+        const samples = Math.max(0, Number(vitals.sampleCount) || 0);
+        $('webAnalyticsVitalsDetail').textContent = samples ? samples + ' amostras RUM · objetivos < 200 ms / < 0,1' : 'Ainda sem amostras de Web Vitals';
+        replaceGrowthRows('webAnalyticsPages', (Array.isArray(data.topPages) ? data.topPages : []).map((item) => [String(item.label || '—'), compactMetric(item.value)]), 'Sem páginas medidas neste período');
+        replaceGrowthRows('webAnalyticsReferrers', (Array.isArray(data.referrers) ? data.referrers : []).map((item) => [String(item.label || '—'), compactMetric(item.value)]), 'Sem referências medidas neste período');
+        replaceGrowthRows('webAnalyticsDevices', (Array.isArray(data.devices) ? data.devices : []).map((item) => [String(item.label || '—'), compactMetric(item.value)]), 'Sem dispositivos medidos neste período');
+        $('webAnalyticsStatus').textContent = 'Atualizado ' + formatGrowthTimestamp(data.lastUpdated) + ' · ' + (data.partialData ? 'dados RUM podem ser bloqueados por extensões de privacidade' : 'dados agregados');
+      }
+
+      function renderWebAnalyticsUnavailable() {
+        const dashboard = $('webAnalyticsDashboard');
+        dashboard.dataset.state = 'error';
+        ['webAnalyticsVisits', 'webAnalyticsPageViews', 'webAnalyticsLcp', 'webAnalyticsInpCls'].forEach((id) => { $(id).textContent = '—'; });
+        $('webAnalyticsLcpDetail').textContent = 'Objetivo < 2,5 s';
+        $('webAnalyticsVitalsDetail').textContent = 'Objetivos < 200 ms / < 0,1';
+        replaceGrowthRows('webAnalyticsPages', [], 'Cloudflare Web Analytics ainda não configurado');
+        replaceGrowthRows('webAnalyticsReferrers', [], 'Cloudflare Web Analytics ainda não configurado');
+        replaceGrowthRows('webAnalyticsDevices', [], 'Cloudflare Web Analytics ainda não configurado');
+        $('webAnalyticsStatus').textContent = 'Tráfego público indisponível. A configuração e o token continuam apenas no servidor.';
+      }
+
+      async function loadWebAnalytics() {
+        if (isHelperProduct || !session) return;
+        const dashboard = $('webAnalyticsDashboard');
+        dashboard.dataset.state = 'loading';
+        const [from, to] = growthDateRange(growthDays);
+        try {
+          const data = await adminJson('/api/admin/web-analytics?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to));
+          renderWebAnalytics(data || {});
+        } catch (error) {
+          if (isAuthFailure(error)) return logoutStale();
+          renderWebAnalyticsUnavailable();
+        }
+      }
+
+      document.querySelectorAll('[data-growth-range]').forEach((button) => {
+        button.addEventListener('click', () => {
+          growthDays = Number(button.dataset.growthRange) || 30;
+          document.querySelectorAll('[data-growth-range]').forEach((item) => item.classList.toggle('is-active', item === button));
+          loadGrowthMetrics();
+          if (!isHelperProduct) loadWebAnalytics();
+        });
+      });
 
       function renderServerGrowth(guilds) {
         const guildList = Array.isArray(guilds) ? guilds : [];
@@ -1598,7 +1886,16 @@
         }
       }
 
-      $('metricsRefresh').addEventListener('click', loadSystemMetrics);
+      $('metricsRefresh').addEventListener('click', () => {
+        if (isHelperProduct) {
+          loadHelperMetrics();
+          loadGrowthMetrics();
+        } else {
+          loadSystemMetrics();
+          loadGrowthMetrics();
+          loadWebAnalytics();
+        }
+      });
 
       // Tabs
       $('tabGrants').addEventListener('click', () => switchTab('grants'));
