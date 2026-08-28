@@ -1492,6 +1492,22 @@
         return new Intl.DateTimeFormat('pt-PT', { dateStyle: 'short', timeStyle: 'short', timeZone: 'UTC' }).format(new Date(value));
       }
 
+      function formatTopggDetail(detail) {
+        const labels = {
+          delivered: 'Entregue à API v1',
+          unconfigured: 'Token Top.gg não configurado',
+          v1_authentication_failed: 'Token v1 inválido, expirado ou legacy',
+          project_not_found: 'Projeto Top.gg não encontrado',
+          invalid_metrics_payload: 'Métricas rejeitadas pela API',
+          rate_limited: 'Limite da API Top.gg atingido',
+          http_failure: 'Falha HTTP da API Top.gg',
+          transport_failure: 'Falha de rede ao contactar Top.gg',
+          invalid_configuration: 'Configuração Top.gg inválida',
+          unknown: 'A aguardar diagnóstico',
+        };
+        return labels[String(detail || 'unknown')] || 'A aguardar diagnóstico';
+      }
+
       function renderGrowthMetrics(data) {
         const dashboard = $('growthDashboard');
         dashboard.dataset.state = 'ready';
@@ -1532,6 +1548,7 @@
           const failures = Math.max(0, Number(topgg.consecutiveFailures) || 0);
           replaceGrowthRows('growthTopgg', [
             ['Estado', topgg.alert ? 'Alerta: rever agora' : 'Saudável'],
+            ['Diagnóstico', formatTopggDetail(topgg.lastDetail)],
             ['Último sucesso', formatGrowthTimestamp(topgg.lastSuccessAt)],
             ['HTTP / falhas', (topgg.lastStatus || '—') + ' / ' + failures],
             ['Servidores enviados', String(topgg.lastServerCount ?? '—')],

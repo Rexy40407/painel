@@ -75,3 +75,10 @@ test('private panel renders each product growth from its authenticated aggregate
   assert.match(page, /adminJson\('\/api\/admin\/web-analytics\?from='/);
   assert.match(page, /A configuração e o token continuam apenas no servidor/);
 });
+
+test('private panel surfaces a sanitized Top.gg configuration diagnosis', () => {
+  assert.match(page, /function formatTopggDetail\(detail\)/);
+  assert.match(page, /Token Top\.gg não configurado/);
+  assert.match(page, /Token v1 inválido, expirado ou legacy/);
+  assert.match(page, /\['Diagnóstico', formatTopggDetail\(topgg\.lastDetail\)\]/);
+});
