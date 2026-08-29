@@ -56,11 +56,41 @@
     return history.length ? history[history.length - 1].count : 0;
   }
 
+  function buildGrowthInventorySummary(data, days) {
+    const count = (value) => Number.isFinite(Number(value)) ? Math.max(0, Math.trunc(Number(value))) : 0;
+    const current = count(data && data.currentGuilds);
+    const joins = count(data && data.joins);
+    const leaves = count(data && data.leaves);
+    const baseline = count(data && data.baselineGuilds);
+    const net = joins - leaves;
+    const startedOn = data && data.measurementStartedOn;
+    const validStart = typeof startedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(startedOn)
+      && Number.isFinite(Date.parse(startedOn + 'T00:00:00Z'))
+      && new Date(startedOn + 'T00:00:00Z').toISOString().slice(0, 10) === startedOn;
+    const range = count(days);
+    const coverage = [range ? range + ' dias selecionados' : 'Período selecionado'];
+    if (validStart) {
+      coverage.push('Medição desde ' + startedOn.split('-').reverse().join('/'));
+    } else {
+      coverage.push('Início da medição indisponível');
+    }
+    if (baseline > 0) {
+      coverage.push('Base inicial: ' + baseline + ' servidores, sem datas históricas de entrada');
+    }
+
+    return {
+      current: String(current),
+      detail: (net > 0 ? '+' : '') + net + ' líquido medido · ' + joins + ' entradas · ' + leaves + ' saídas',
+      coverage: coverage.join(' · '),
+    };
+  }
+
   return {
     normalizeTimestampMs,
     timestampFromGuild,
     utcDayKey,
     buildServerJoinHistory,
     countServerJoinsToday,
+    buildGrowthInventorySummary,
   };
 }));

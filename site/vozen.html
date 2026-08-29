@@ -528,7 +528,7 @@
         <div class="growth-dashboard__head">
           <div>
             <h2 id="growthTitle">Crescimento do TTS</h2>
-            <p>Funil first-party por servidor. Sem IDs de servidores ou utilizadores.</p>
+            <p>Total atual e evolução medida por servidor. Sem IDs de servidores ou utilizadores.</p>
           </div>
           <div class="growth-dashboard__controls" aria-label="Período das métricas de crescimento">
             <button class="growth-range" data-growth-range="7" type="button">7 dias</button>
@@ -536,15 +536,16 @@
             <button class="growth-range" data-growth-range="90" type="button">90 dias</button>
           </div>
         </div>
+        <p class="growth-status" id="growthCoverage">A verificar a cobertura da medição…</p>
         <div class="growth-cards">
-          <article class="growth-card"><span class="growth-card__label">Entradas líquidas</span><strong class="growth-card__value" id="growthNet">—</strong><small class="growth-card__detail" id="growthJoins">A carregar</small></article>
+          <article class="growth-card"><span class="growth-card__label">Servidores atuais</span><strong class="growth-card__value" id="growthNet">—</strong><small class="growth-card__detail" id="growthJoins">A carregar</small></article>
           <article class="growth-card"><span class="growth-card__label" id="growthSetupLabel">Servidores prontos</span><strong class="growth-card__value" id="growthSetupRate">—</strong><small class="growth-card__detail" id="growthSetupDetail">A carregar</small></article>
           <article class="growth-card"><span class="growth-card__label" id="growthActivationLabel">Servidores com uso</span><strong class="growth-card__value" id="growthActivationRate">—</strong><small class="growth-card__detail" id="growthActivationDetail">A carregar</small></article>
           <article class="growth-card"><span class="growth-card__label">Retenção</span><strong class="growth-card__value" id="growthRetention">—</strong><small class="growth-card__detail" id="growthRetentionDetail">A carregar</small></article>
         </div>
         <div class="growth-dashboard__lower">
-          <article class="growth-panel"><h3>Funil de ativação</h3><ol class="growth-funnel" id="growthFunnel" aria-label="Funil de ativação"></ol></article>
-          <article class="growth-panel"><h3>Origens</h3><ol class="growth-list" id="growthSources" aria-label="Origens de instalação"></ol></article>
+          <article class="growth-panel"><h3>Ativação das entradas medidas</h3><ol class="growth-funnel" id="growthFunnel" aria-label="Ativação das entradas medidas"></ol></article>
+          <article class="growth-panel"><h3>Origens das entradas medidas</h3><ol class="growth-list" id="growthSources" aria-label="Origens das entradas medidas"></ol></article>
           <article class="growth-panel" id="growthTopggPanel"><h3>Top.gg</h3><ol class="growth-list" id="growthTopgg" aria-label="Estado da sincronização Top.gg"></ol></article>
         </div>
         <p class="growth-status" id="growthStatus" aria-live="polite">A carregar métricas de crescimento…</p>
@@ -743,6 +744,11 @@
       const serverHistory = window.VozenServerHistory || {};
       const buildServerJoinHistory = serverHistory.buildServerJoinHistory || (() => []);
       const countServerJoinsToday = serverHistory.countServerJoinsToday || (() => 0);
+      const buildGrowthInventorySummary = serverHistory.buildGrowthInventorySummary || ((data) => ({
+        current: String(Math.max(0, Number(data.currentGuilds) || 0)),
+        detail: 'Evolução medida temporariamente indisponível',
+        coverage: 'Cobertura da medição indisponível',
+      }));
       let guildRows = [];
       let guildPage = 1;
       let growthDays = 30;
@@ -1466,9 +1472,9 @@
       function renderGrowthFunnel(data) {
         const joins = Math.max(0, Number(data.joins) || 0);
         const rows = [
-          ['Entradas', joins],
+          ['Entradas medidas', joins],
           [isHelperProduct ? 'Setup concluído' : 'Configurações novas', Math.max(0, Number(data.setupCompleted) || 0)],
-          ['Primeiro valor', Math.max(0, Number(data.firstValue) || 0)],
+          ['Primeiro valor novo', Math.max(0, Number(data.firstValue) || 0)],
         ];
         const list = $('growthFunnel');
         list.replaceChildren();
@@ -1515,11 +1521,11 @@
         const dashboard = $('growthDashboard');
         dashboard.dataset.state = 'ready';
         const joins = Math.max(0, Number(data.joins) || 0);
-        const leaves = Math.max(0, Number(data.leaves) || 0);
-        const net = Number(data.net) || 0;
-        $('growthNet').textContent = (net > 0 ? '+' : '') + String(net);
-        $('growthNet').className = 'growth-card__value ' + (net > 0 ? 'is-positive' : net < 0 ? 'is-warning' : '');
-        $('growthJoins').textContent = joins + ' entradas · ' + leaves + ' saídas · ' + (Number(data.currentGuilds) || 0) + ' atuais';
+        const inventory = buildGrowthInventorySummary(data, growthDays);
+        $('growthNet').textContent = inventory.current;
+        $('growthNet').className = 'growth-card__value';
+        $('growthJoins').textContent = inventory.detail;
+        $('growthCoverage').textContent = inventory.coverage;
         const currentGuilds = Math.max(0, Number(data.currentGuilds) || 0);
         const configuredGuilds = Math.max(0, Number(data.configuredGuilds) || 0);
         $('growthSetupLabel').textContent = isHelperProduct ? 'Setup concluído' : 'Servidores prontos';
@@ -1582,6 +1588,7 @@
         const dashboard = $('growthDashboard');
         dashboard.dataset.state = 'error';
         ['growthNet', 'growthSetupRate', 'growthActivationRate', 'growthRetention'].forEach((id) => { $(id).textContent = '—'; });
+        $('growthCoverage').textContent = 'Cobertura da medição indisponível';
         $('growthJoins').textContent = 'Não foi possível obter entradas e saídas';
         $('growthSetupDetail').textContent = 'Tenta atualizar novamente';
         $('growthActivationDetail').textContent = 'Tenta atualizar novamente';

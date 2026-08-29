@@ -86,6 +86,36 @@ test('private panel distinguishes current ready servers from newly tracked setup
   assert.match(page, /source !== 'baseline'/);
 });
 
+test('ninety-day summary keeps total inventory separate from measured growth', () => {
+  const { buildGrowthInventorySummary } = loadUtility();
+  const summary = buildGrowthInventorySummary({
+    currentGuilds: 172,
+    baselineGuilds: 168,
+    measurementStartedOn: '2026-08-28',
+    joins: 7,
+    leaves: 3,
+    net: 4,
+  }, 90);
+  assert.equal(summary.current, '172');
+  assert.equal(summary.detail, '+4 líquido medido · 7 entradas · 3 saídas');
+  assert.equal(summary.coverage, '90 dias selecionados · Medição desde 28/08/2026 · Base inicial: 168 servidores, sem datas históricas de entrada');
+  assert.match(page, /growth-card__label">Servidores atuais/);
+  assert.match(page, /id="growthCoverage"/);
+  assert.match(page, /Entradas medidas/);
+  assert.doesNotMatch(page, /growth-card__label">Entradas líquidas/);
+});
+
+test('short windows do not change current inventory or invent measurement coverage', () => {
+  const { buildGrowthInventorySummary } = loadUtility();
+  const recent = buildGrowthInventorySummary({ currentGuilds: 172, joins: 2, leaves: 1, net: 999 }, 7);
+  assert.equal(recent.current, '172');
+  assert.equal(recent.detail, '+1 líquido medido · 2 entradas · 1 saídas');
+  assert.equal(recent.coverage, '7 dias selecionados · Início da medição indisponível');
+  const invalid = buildGrowthInventorySummary({ measurementStartedOn: '2026-02-30' }, 90);
+  assert.equal(invalid.current, '0');
+  assert.doesNotMatch(invalid.coverage, /Medição desde/);
+});
+
 test('private panel surfaces a sanitized Top.gg configuration diagnosis', () => {
   assert.match(page, /function formatTopggDetail\(detail\)/);
   assert.match(page, /Token Top\.gg não configurado/);
