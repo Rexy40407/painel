@@ -806,7 +806,10 @@
         }
         $('growthDashboard').hidden = false;
         $('growthTitle').textContent = isHelperProduct ? 'Crescimento do Helper' : 'Crescimento do TTS';
-        $('growthTopggPanel').hidden = isHelperProduct;
+        // Both products use the same aggregate-only Top.gg health contract.
+        // Before a product has a listing/token this shows the explicit
+        // "not configured" state instead of hiding an operational gap.
+        $('growthTopggPanel').hidden = false;
         $('webAnalyticsDashboard').hidden = isHelperProduct;
       }
 

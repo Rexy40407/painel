@@ -70,7 +70,7 @@ test('private panel renders each product growth from its authenticated aggregate
   assert.match(page, /product=' \+ \(isHelperProduct \? 'helper' : 'tts'\)/);
   assert.match(page, /isHelperProduct \? helperJson\(path\) : adminJson\(path\)/);
   assert.match(page, /Sem IDs de servidores ou utilizadores/);
-  assert.match(page, /growthTopggPanel'\)\.hidden = isHelperProduct/);
+  assert.match(page, /growthTopggPanel'\)\.hidden = false/);
   assert.match(page, /function loadWebAnalytics\(\)/);
   assert.match(page, /adminJson\('\/api\/admin\/web-analytics\?from='/);
   assert.match(page, /A configuração e o token continuam apenas no servidor/);
