@@ -752,6 +752,8 @@
       let guildRows = [];
       let guildPage = 1;
       let growthDays = 30;
+      let growthRequestId = 0;
+      let webAnalyticsRequestId = 0;
 
       // Captura o token do fragmento (#access_token=…) após o redirect do OAuth e limpa o URL.
       (function () {
@@ -1517,11 +1519,11 @@
         return labels[String(detail || 'unknown')] || 'A aguardar diagnóstico';
       }
 
-      function renderGrowthMetrics(data) {
+      function renderGrowthMetrics(data, days = growthDays) {
         const dashboard = $('growthDashboard');
         dashboard.dataset.state = 'ready';
         const joins = Math.max(0, Number(data.joins) || 0);
-        const inventory = buildGrowthInventorySummary(data, growthDays);
+        const inventory = buildGrowthInventorySummary(data, days);
         $('growthNet').textContent = inventory.current;
         $('growthNet').className = 'growth-card__value';
         $('growthJoins').textContent = inventory.detail;
@@ -1600,15 +1602,19 @@
       }
 
       async function loadGrowthMetrics() {
+        const requestId = ++growthRequestId;
         if ((!isHelperProduct && !session) || (isHelperProduct && (!helperSession || !helperSession.token))) return;
+        const requestedDays = growthDays;
         const dashboard = $('growthDashboard');
         dashboard.dataset.state = 'loading';
-        const [from, to] = growthDateRange(growthDays);
+        const [from, to] = growthDateRange(requestedDays);
         try {
           const path = '/api/admin/growth?product=' + (isHelperProduct ? 'helper' : 'tts') + '&from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to);
           const data = await (isHelperProduct ? helperJson(path) : adminJson(path));
-          renderGrowthMetrics(data || {});
+          if (requestId !== growthRequestId) return;
+          renderGrowthMetrics(data || {}, requestedDays);
         } catch (error) {
+          if (requestId !== growthRequestId) return;
           if (isAuthFailure(error)) return logoutStale();
           renderGrowthUnavailable();
         }
@@ -1650,14 +1656,17 @@
       }
 
       async function loadWebAnalytics() {
+        const requestId = ++webAnalyticsRequestId;
         if (isHelperProduct || !session) return;
         const dashboard = $('webAnalyticsDashboard');
         dashboard.dataset.state = 'loading';
         const [from, to] = growthDateRange(growthDays);
         try {
           const data = await adminJson('/api/admin/web-analytics?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to));
+          if (requestId !== webAnalyticsRequestId) return;
           renderWebAnalytics(data || {});
         } catch (error) {
+          if (requestId !== webAnalyticsRequestId) return;
           if (isAuthFailure(error)) return logoutStale();
           renderWebAnalyticsUnavailable();
         }
