@@ -539,7 +539,7 @@
         <div class="growth-cards">
           <article class="growth-card"><span class="growth-card__label">Entradas líquidas</span><strong class="growth-card__value" id="growthNet">—</strong><small class="growth-card__detail" id="growthJoins">A carregar</small></article>
           <article class="growth-card"><span class="growth-card__label" id="growthSetupLabel">Servidores prontos</span><strong class="growth-card__value" id="growthSetupRate">—</strong><small class="growth-card__detail" id="growthSetupDetail">A carregar</small></article>
-          <article class="growth-card"><span class="growth-card__label">Primeiro valor</span><strong class="growth-card__value" id="growthActivationRate">—</strong><small class="growth-card__detail" id="growthActivationDetail">A carregar</small></article>
+          <article class="growth-card"><span class="growth-card__label" id="growthActivationLabel">Servidores com uso</span><strong class="growth-card__value" id="growthActivationRate">—</strong><small class="growth-card__detail" id="growthActivationDetail">A carregar</small></article>
           <article class="growth-card"><span class="growth-card__label">Retenção</span><strong class="growth-card__value" id="growthRetention">—</strong><small class="growth-card__detail" id="growthRetentionDetail">A carregar</small></article>
         </div>
         <div class="growth-dashboard__lower">
@@ -1530,8 +1530,16 @@
           $('growthSetupRate').textContent = growthPercent(configuredGuilds, currentGuilds);
           $('growthSetupDetail').textContent = configuredGuilds + ' canais TTS ativos · ' + (Number(data.setupCompleted) || 0) + ' configurações novas';
         }
-        $('growthActivationRate').textContent = growthPercent(data.firstValue, joins);
-        $('growthActivationDetail').textContent = (Number(data.firstValue) || 0) + (isHelperProduct ? ' primeiras ações úteis' : ' primeiras reproduções');
+        if (isHelperProduct) {
+          $('growthActivationLabel').textContent = 'Primeiro valor';
+          $('growthActivationRate').textContent = growthPercent(data.firstValue, joins);
+          $('growthActivationDetail').textContent = (Number(data.firstValue) || 0) + ' primeiras ações úteis';
+        } else {
+          const usedGuilds = Math.max(0, Number(data.usedGuilds) || 0);
+          $('growthActivationLabel').textContent = 'Servidores com uso';
+          $('growthActivationRate').textContent = growthPercent(usedGuilds, currentGuilds);
+          $('growthActivationDetail').textContent = usedGuilds + ' com reprodução registada · ' + (Number(data.firstValue) || 0) + ' primeiros usos novos';
+        }
         const w7 = data.retainedW7Rate === null || data.retainedW7Rate === undefined
           ? growthPercent(data.retainedW7, data.eligibleW7)
           : Math.round(Number(data.retainedW7Rate) * 100) + '%';
@@ -1548,6 +1556,7 @@
           sourceCounts.set(source, (sourceCounts.get(source) || 0) + (Number(row && row.joins) || 0));
         });
         replaceGrowthRows('growthSources', [...sourceCounts.entries()]
+          .filter(([source, count]) => source !== 'baseline' && count > 0)
           .sort((left, right) => right[1] - left[1])
           .slice(0, 5)
           .map(([source, count]) => [source, String(count)]), 'Sem origens neste período');

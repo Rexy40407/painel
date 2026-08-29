@@ -80,6 +80,10 @@ test('private panel distinguishes current ready servers from newly tracked setup
   assert.match(page, /Servidores prontos/);
   assert.match(page, /configuredGuilds/);
   assert.match(page, /Configurações novas/);
+  assert.match(page, /Servidores com uso/);
+  assert.match(page, /usedGuilds/);
+  assert.match(page, /com reprodução registada/);
+  assert.match(page, /source !== 'baseline'/);
 });
 
 test('private panel surfaces a sanitized Top.gg configuration diagnosis', () => {
