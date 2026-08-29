@@ -538,7 +538,7 @@
         </div>
         <div class="growth-cards">
           <article class="growth-card"><span class="growth-card__label">Entradas líquidas</span><strong class="growth-card__value" id="growthNet">—</strong><small class="growth-card__detail" id="growthJoins">A carregar</small></article>
-          <article class="growth-card"><span class="growth-card__label">Setup concluído</span><strong class="growth-card__value" id="growthSetupRate">—</strong><small class="growth-card__detail" id="growthSetupDetail">A carregar</small></article>
+          <article class="growth-card"><span class="growth-card__label" id="growthSetupLabel">Servidores prontos</span><strong class="growth-card__value" id="growthSetupRate">—</strong><small class="growth-card__detail" id="growthSetupDetail">A carregar</small></article>
           <article class="growth-card"><span class="growth-card__label">Primeiro valor</span><strong class="growth-card__value" id="growthActivationRate">—</strong><small class="growth-card__detail" id="growthActivationDetail">A carregar</small></article>
           <article class="growth-card"><span class="growth-card__label">Retenção</span><strong class="growth-card__value" id="growthRetention">—</strong><small class="growth-card__detail" id="growthRetentionDetail">A carregar</small></article>
         </div>
@@ -1467,7 +1467,7 @@
         const joins = Math.max(0, Number(data.joins) || 0);
         const rows = [
           ['Entradas', joins],
-          ['Setup concluído', Math.max(0, Number(data.setupCompleted) || 0)],
+          [isHelperProduct ? 'Setup concluído' : 'Configurações novas', Math.max(0, Number(data.setupCompleted) || 0)],
           ['Primeiro valor', Math.max(0, Number(data.firstValue) || 0)],
         ];
         const list = $('growthFunnel');
@@ -1520,8 +1520,16 @@
         $('growthNet').textContent = (net > 0 ? '+' : '') + String(net);
         $('growthNet').className = 'growth-card__value ' + (net > 0 ? 'is-positive' : net < 0 ? 'is-warning' : '');
         $('growthJoins').textContent = joins + ' entradas · ' + leaves + ' saídas · ' + (Number(data.currentGuilds) || 0) + ' atuais';
-        $('growthSetupRate').textContent = growthPercent(data.setupCompleted, joins);
-        $('growthSetupDetail').textContent = (Number(data.setupCompleted) || 0) + ' setups concluídos';
+        const currentGuilds = Math.max(0, Number(data.currentGuilds) || 0);
+        const configuredGuilds = Math.max(0, Number(data.configuredGuilds) || 0);
+        $('growthSetupLabel').textContent = isHelperProduct ? 'Setup concluído' : 'Servidores prontos';
+        if (isHelperProduct) {
+          $('growthSetupRate').textContent = growthPercent(data.setupCompleted, joins);
+          $('growthSetupDetail').textContent = (Number(data.setupCompleted) || 0) + ' setups concluídos';
+        } else {
+          $('growthSetupRate').textContent = growthPercent(configuredGuilds, currentGuilds);
+          $('growthSetupDetail').textContent = configuredGuilds + ' canais TTS ativos · ' + (Number(data.setupCompleted) || 0) + ' configurações novas';
+        }
         $('growthActivationRate').textContent = growthPercent(data.firstValue, joins);
         $('growthActivationDetail').textContent = (Number(data.firstValue) || 0) + (isHelperProduct ? ' primeiras ações úteis' : ' primeiras reproduções');
         const w7 = data.retainedW7Rate === null || data.retainedW7Rate === undefined

@@ -76,6 +76,12 @@ test('private panel renders each product growth from its authenticated aggregate
   assert.match(page, /A configuração e o token continuam apenas no servidor/);
 });
 
+test('private panel distinguishes current ready servers from newly tracked setup events', () => {
+  assert.match(page, /Servidores prontos/);
+  assert.match(page, /configuredGuilds/);
+  assert.match(page, /Configurações novas/);
+});
+
 test('private panel surfaces a sanitized Top.gg configuration diagnosis', () => {
   assert.match(page, /function formatTopggDetail\(detail\)/);
   assert.match(page, /Token Top\.gg não configurado/);
