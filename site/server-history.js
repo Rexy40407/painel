@@ -56,6 +56,13 @@
     return history.length ? history[history.length - 1].count : 0;
   }
 
+  function strictUtcDay(value) {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+    const timestamp = Date.parse(value + 'T00:00:00Z');
+    if (!Number.isFinite(timestamp)) return null;
+    return new Date(timestamp).toISOString().slice(0, 10) === value ? timestamp : null;
+  }
+
   function buildGrowthInventorySummary(data, days) {
     const count = (value) => Number.isFinite(Number(value)) ? Math.max(0, Math.trunc(Number(value))) : 0;
     const current = count(data && data.currentGuilds);
@@ -64,9 +71,7 @@
     const baseline = count(data && data.baselineGuilds);
     const net = joins - leaves;
     const startedOn = data && data.measurementStartedOn;
-    const validStart = typeof startedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(startedOn)
-      && Number.isFinite(Date.parse(startedOn + 'T00:00:00Z'))
-      && new Date(startedOn + 'T00:00:00Z').toISOString().slice(0, 10) === startedOn;
+    const validStart = strictUtcDay(startedOn) !== null;
     const range = count(days);
     const coverage = [range ? range + ' dias selecionados' : 'Período selecionado'];
     if (validStart) {
@@ -85,6 +90,47 @@
     };
   }
 
+  function buildGrowthPeriodNote(data, days, today) {
+    const startedOn = data && data.measurementStartedOn;
+    const startTimestamp = strictUtcDay(startedOn);
+    const todayKey = today || new Date().toISOString().slice(0, 10);
+    const todayTimestamp = strictUtcDay(todayKey);
+    const selectedDays = Number.isFinite(Number(days)) ? Math.max(0, Math.trunc(Number(days))) : 0;
+    const scope = ' Os valores grandes mostram o estado atual; o período filtra entradas, saídas, configurações novas, primeiro valor e origens.';
+
+    if (startTimestamp === null || todayTimestamp === null || todayTimestamp < startTimestamp) {
+      return {
+        historyDays: null,
+        includesFullHistory: false,
+        message: 'O início da medição está indisponível.' + scope,
+      };
+    }
+
+    const historyDays = Math.floor((todayTimestamp - startTimestamp) / 86400000) + 1;
+    if (historyDays <= 7) {
+      return {
+        historyDays,
+        includesFullHistory: true,
+        message: 'Histórico medido: ' + historyDays + (historyDays === 1 ? ' dia. ' : ' dias. ')
+          + 'Neste momento, 7, 30 e 90 dias abrangem os mesmos dados.' + scope,
+      };
+    }
+    if (selectedDays >= historyDays) {
+      return {
+        historyDays,
+        includesFullHistory: true,
+        message: 'Histórico medido: ' + historyDays + ' dias. Os ' + selectedDays
+          + ' dias selecionados abrangem todo o histórico medido.' + scope,
+      };
+    }
+    return {
+      historyDays,
+      includesFullHistory: false,
+      message: 'Histórico medido: ' + historyDays + ' dias. A janela de ' + selectedDays
+        + ' dias contém apenas parte desse histórico.' + scope,
+    };
+  }
+
   return {
     normalizeTimestampMs,
     timestampFromGuild,
@@ -92,5 +138,6 @@
     buildServerJoinHistory,
     countServerJoinsToday,
     buildGrowthInventorySummary,
+    buildGrowthPeriodNote,
   };
 }));

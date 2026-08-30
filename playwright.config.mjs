@@ -2,7 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 const config = {
   testDir: "./tests",
-  testMatch: "preview.spec.mjs",
+  testMatch: "*.spec.mjs",
   timeout: 45_000,
   fullyParallel: true,
   workers: process.env.CI ? 2 : undefined,

@@ -296,6 +296,7 @@
       .growth-funnel__bar { grid-column: 1 / -1; height: 5px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.1); }
       .growth-funnel__bar i { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--aqua), #6672ff); transition: width .25s ease; }
       .growth-status { margin: 9px 0 0; color: var(--text-2); font: 11px/1.45 var(--f-mono); }
+      .growth-period-note { margin: 10px 0 0; padding: 10px 12px; border: 1px solid rgba(46,230,200,.18); border-left: 2px solid var(--aqua); border-radius: 9px; color: var(--text-2); background: rgba(46,230,200,.045); font-size: 12px; line-height: 1.5; }
       .growth-dashboard[data-state="loading"] .growth-card__value { color: var(--text-2); }
       .growth-dashboard[data-state="error"] { border-color: rgba(255,110,169,.48); }
       @media (max-width: 920px) { .growth-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } .growth-dashboard__lower { grid-template-columns: 1fr; } }
@@ -537,6 +538,7 @@
           </div>
         </div>
         <p class="growth-status" id="growthCoverage">A verificar a cobertura da medição…</p>
+        <p class="growth-period-note" id="growthPeriodNote" aria-live="polite">A verificar como o período afeta os valores…</p>
         <div class="growth-cards">
           <article class="growth-card"><span class="growth-card__label">Servidores atuais</span><strong class="growth-card__value" id="growthNet">—</strong><small class="growth-card__detail" id="growthJoins">A carregar</small></article>
           <article class="growth-card"><span class="growth-card__label" id="growthSetupLabel">Servidores prontos</span><strong class="growth-card__value" id="growthSetupRate">—</strong><small class="growth-card__detail" id="growthSetupDetail">A carregar</small></article>
@@ -748,6 +750,9 @@
         current: String(Math.max(0, Number(data.currentGuilds) || 0)),
         detail: 'Evolução medida temporariamente indisponível',
         coverage: 'Cobertura da medição indisponível',
+      }));
+      const buildGrowthPeriodNote = serverHistory.buildGrowthPeriodNote || (() => ({
+        message: 'Os valores grandes mostram o estado atual; o período filtra a evolução medida.',
       }));
       let guildRows = [];
       let guildPage = 1;
@@ -1524,10 +1529,12 @@
         dashboard.dataset.state = 'ready';
         const joins = Math.max(0, Number(data.joins) || 0);
         const inventory = buildGrowthInventorySummary(data, days);
+        const periodNote = buildGrowthPeriodNote(data, days);
         $('growthNet').textContent = inventory.current;
         $('growthNet').className = 'growth-card__value';
         $('growthJoins').textContent = inventory.detail;
         $('growthCoverage').textContent = inventory.coverage;
+        $('growthPeriodNote').textContent = periodNote.message;
         const currentGuilds = Math.max(0, Number(data.currentGuilds) || 0);
         const configuredGuilds = Math.max(0, Number(data.configuredGuilds) || 0);
         $('growthSetupLabel').textContent = isHelperProduct ? 'Setup concluído' : 'Servidores prontos';
@@ -1591,6 +1598,7 @@
         dashboard.dataset.state = 'error';
         ['growthNet', 'growthSetupRate', 'growthActivationRate', 'growthRetention'].forEach((id) => { $(id).textContent = '—'; });
         $('growthCoverage').textContent = 'Cobertura da medição indisponível';
+        $('growthPeriodNote').textContent = 'Não foi possível avaliar como o período afeta estes valores.';
         $('growthJoins').textContent = 'Não foi possível obter entradas e saídas';
         $('growthSetupDetail').textContent = 'Tenta atualizar novamente';
         $('growthActivationDetail').textContent = 'Tenta atualizar novamente';

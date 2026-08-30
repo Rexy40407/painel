@@ -86,6 +86,47 @@ test('private panel distinguishes current ready servers from newly tracked setup
   assert.match(page, /source !== 'baseline'/);
 });
 
+test('growth period note explains when every selector contains the full measured history', () => {
+  const { buildGrowthPeriodNote } = loadUtility();
+  const note = buildGrowthPeriodNote({ measurementStartedOn: '2026-08-28' }, 90, '2026-08-29');
+  assert.equal(note.historyDays, 2);
+  assert.equal(note.includesFullHistory, true);
+  assert.match(note.message, /Histórico medido: 2 dias/);
+  assert.match(note.message, /7, 30 e 90 dias abrangem os mesmos dados/);
+  assert.match(note.message, /valores grandes mostram o estado atual/);
+});
+
+test('growth period note keeps a partial window distinct after more than seven measured days', () => {
+  const { buildGrowthPeriodNote } = loadUtility();
+  const recent = buildGrowthPeriodNote({ measurementStartedOn: '2026-08-01' }, 7, '2026-08-29');
+  assert.equal(recent.historyDays, 29);
+  assert.equal(recent.includesFullHistory, false);
+  assert.match(recent.message, /A janela de 7 dias contém apenas parte/);
+  assert.doesNotMatch(recent.message, /abrangem os mesmos dados/);
+
+  const full = buildGrowthPeriodNote({ measurementStartedOn: '2026-08-01' }, 30, '2026-08-29');
+  assert.equal(full.includesFullHistory, true);
+  assert.match(full.message, /Os 30 dias selecionados abrangem todo o histórico medido/);
+});
+
+test('growth period note handles one day and unavailable coverage without inventing dates', () => {
+  const { buildGrowthPeriodNote } = loadUtility();
+  const firstDay = buildGrowthPeriodNote({ measurementStartedOn: '2026-08-29' }, 7, '2026-08-29');
+  assert.match(firstDay.message, /Histórico medido: 1 dia\./);
+  const invalid = buildGrowthPeriodNote({ measurementStartedOn: '2026-02-30' }, 90, '2026-08-29');
+  assert.equal(invalid.historyDays, null);
+  assert.equal(invalid.includesFullHistory, false);
+  assert.match(invalid.message, /início da medição está indisponível/);
+  assert.doesNotMatch(invalid.message, /Histórico medido:/);
+});
+
+test('private panel presents the period explanation beside the range controls', () => {
+  assert.match(page, /id="growthPeriodNote"[^>]*aria-live="polite"/);
+  assert.match(page, /buildGrowthPeriodNote/);
+  assert.match(page, /\$\('growthPeriodNote'\)\.textContent = periodNote\.message/);
+  assert.match(page, /valores grandes mostram o estado atual/);
+});
+
 test('ninety-day summary keeps total inventory separate from measured growth', () => {
   const { buildGrowthInventorySummary } = loadUtility();
   const summary = buildGrowthInventorySummary({
