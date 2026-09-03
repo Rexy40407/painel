@@ -769,7 +769,9 @@
       let growthRequestId = 0;
       let webAnalyticsRequestId = 0;
       let latestGrowthData = null;
+      let latestGrowthDays = null;
       let latestWebAnalyticsData = null;
+      let latestWebAnalyticsDays = null;
 
       // Captura o token do fragmento (#access_token=…) após o redirect do OAuth e limpa o URL.
       (function () {
@@ -1487,10 +1489,10 @@
         });
       }
 
-      function renderGrowthFunnel(data) {
+      function renderGrowthFunnel(data, days = growthDays) {
         const funnel = buildProductConversionFunnel(
           data,
-          latestWebAnalyticsData,
+          latestWebAnalyticsDays === days ? latestWebAnalyticsData : null,
           isHelperProduct ? 'helper' : 'tts',
         );
         const denominator = Math.max(0, Number(funnel.denominator) || 0);
@@ -1539,6 +1541,7 @@
 
       function renderGrowthMetrics(data, days = growthDays) {
         latestGrowthData = data;
+        latestGrowthDays = days;
         const dashboard = $('growthDashboard');
         dashboard.dataset.state = 'ready';
         const joins = Math.max(0, Number(data.joins) || 0);
@@ -1577,7 +1580,7 @@
           : Math.round(Number(data.retainedW30Rate) * 100) + '%';
         $('growthRetention').textContent = 'W7 ' + w7;
         $('growthRetentionDetail').textContent = 'W30 ' + w30 + ' · coortes elegíveis apenas';
-        renderGrowthFunnel(data);
+        renderGrowthFunnel(data, days);
 
         const sourceCounts = new Map();
         (Array.isArray(data.daily) ? data.daily : []).forEach((row) => {
@@ -1610,6 +1613,7 @@
 
       function renderGrowthUnavailable() {
         latestGrowthData = null;
+        latestGrowthDays = null;
         const dashboard = $('growthDashboard');
         dashboard.dataset.state = 'error';
         ['growthNet', 'growthSetupRate', 'growthActivationRate', 'growthRetention'].forEach((id) => { $(id).textContent = '—'; });
@@ -1648,8 +1652,9 @@
         return new Intl.NumberFormat('pt-PT', { notation: 'compact', maximumFractionDigits: 1 }).format(Math.max(0, Number(value) || 0));
       }
 
-      function renderWebAnalytics(data) {
+      function renderWebAnalytics(data, days = growthDays) {
         latestWebAnalyticsData = data;
+        latestWebAnalyticsDays = days;
         const dashboard = $('webAnalyticsDashboard');
         dashboard.dataset.state = 'ready';
         $('webAnalyticsVisits').textContent = compactMetric(data.visits);
@@ -1666,11 +1671,12 @@
         replaceGrowthRows('webAnalyticsReferrers', (Array.isArray(data.referrers) ? data.referrers : []).map((item) => [String(item.label || '—'), compactMetric(item.value)]), 'Sem referências medidas neste período');
         replaceGrowthRows('webAnalyticsDevices', (Array.isArray(data.devices) ? data.devices : []).map((item) => [String(item.label || '—'), compactMetric(item.value)]), 'Sem dispositivos medidos neste período');
         $('webAnalyticsStatus').textContent = 'Atualizado ' + formatGrowthTimestamp(data.lastUpdated) + ' · ' + (data.partialData ? 'dados RUM podem ser bloqueados por extensões de privacidade' : 'dados agregados');
-        if (latestGrowthData) renderGrowthFunnel(latestGrowthData);
+        if (latestGrowthData && latestGrowthDays === days) renderGrowthFunnel(latestGrowthData, days);
       }
 
       function renderWebAnalyticsUnavailable() {
         latestWebAnalyticsData = null;
+        latestWebAnalyticsDays = null;
         const dashboard = $('webAnalyticsDashboard');
         dashboard.dataset.state = 'error';
         ['webAnalyticsVisits', 'webAnalyticsPageViews', 'webAnalyticsLcp', 'webAnalyticsInpCls'].forEach((id) => { $(id).textContent = '—'; });
@@ -1680,7 +1686,7 @@
         replaceGrowthRows('webAnalyticsReferrers', [], 'Cloudflare Web Analytics ainda não configurado');
         replaceGrowthRows('webAnalyticsDevices', [], 'Cloudflare Web Analytics ainda não configurado');
         $('webAnalyticsStatus').textContent = 'Tráfego público indisponível. A configuração e o token continuam apenas no servidor.';
-        if (latestGrowthData) renderGrowthFunnel(latestGrowthData);
+        if (latestGrowthData) renderGrowthFunnel(latestGrowthData, latestGrowthDays);
       }
 
       async function loadWebAnalytics() {
@@ -1691,11 +1697,12 @@
         }
         const dashboard = $('webAnalyticsDashboard');
         dashboard.dataset.state = 'loading';
-        const [from, to] = growthDateRange(growthDays);
+        const requestedDays = growthDays;
+        const [from, to] = growthDateRange(requestedDays);
         try {
           const data = await adminJson('/api/admin/web-analytics?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to));
           if (requestId !== webAnalyticsRequestId) return;
-          renderWebAnalytics(data || {});
+          renderWebAnalytics(data || {}, requestedDays);
         } catch (error) {
           if (requestId !== webAnalyticsRequestId) return;
           if (isAuthFailure(error)) return logoutStale();

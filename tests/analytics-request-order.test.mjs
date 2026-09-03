@@ -28,7 +28,7 @@ function createLoaderHarness(kind, helper = false) {
     adminJson: request,
     helperJson: request,
     renderGrowthMetrics: (data, days) => rendered.push({ data, days }),
-    renderWebAnalytics: (data) => rendered.push({ data }),
+    renderWebAnalytics: (data, days) => rendered.push({ data, days }),
     renderGrowthUnavailable: () => failures.push('growth'),
     renderWebAnalyticsUnavailable: () => failures.push('traffic'),
     isAuthFailure: (error) => error.status === 401,
@@ -38,7 +38,7 @@ function createLoaderHarness(kind, helper = false) {
   return { context, pending, rendered, failures, load: context[name] };
 }
 
-for (const [kind, helper] of [['growth', false], ['growth', true], ['traffic', false]]) {
+for (const [kind, helper] of [['growth', false], ['growth', true], ['traffic', false], ['traffic', true]]) {
   const label = kind + (helper ? ' helper' : ' tts');
   test(label + ' ignores a late response for the previous date range', async () => {
     const h = createLoaderHarness(kind, helper);
@@ -52,7 +52,7 @@ for (const [kind, helper] of [['growth', false], ['growth', true], ['traffic', f
     h.pending[0].resolve({ period: 7 });
     await oldRequest;
     assert.deepEqual(h.rendered.map((item) => item.data.period), [90]);
-    if (kind === 'growth') assert.equal(h.rendered[0].days, 90);
+    assert.equal(h.rendered[0].days, 90);
   });
 
   test(label + ' ignores stale errors without clearing data or logging out', async () => {
