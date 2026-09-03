@@ -161,5 +161,6 @@ test('private panel surfaces a sanitized Top.gg configuration diagnosis', () => 
   assert.match(page, /function formatTopggDetail\(detail\)/);
   assert.match(page, /Token Top\.gg não configurado/);
   assert.match(page, /Token v1 inválido, expirado ou legacy/);
+  assert.match(page, /\['Votos válidos', String\(Math\.max\(0, Number\(data\.votes\) \|\| 0\)\)\]/);
   assert.match(page, /\['Diagnóstico', formatTopggDetail\(topgg\.lastDetail\)\]/);
 });

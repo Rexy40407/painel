@@ -1583,6 +1583,7 @@
           const failures = Math.max(0, Number(topgg.consecutiveFailures) || 0);
           replaceGrowthRows('growthTopgg', [
             ['Estado', topgg.alert ? 'Alerta: rever agora' : 'Saudável'],
+            ['Votos válidos', String(Math.max(0, Number(data.votes) || 0))],
             ['Diagnóstico', formatTopggDetail(topgg.lastDetail)],
             ['Último sucesso', formatGrowthTimestamp(topgg.lastSuccessAt)],
             ['HTTP / falhas', (topgg.lastStatus || '—') + ' / ' + failures],
