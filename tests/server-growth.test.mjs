@@ -76,10 +76,48 @@ test('private panel renders each product growth from its authenticated aggregate
   assert.match(page, /A configuração e o token continuam apenas no servidor/);
 });
 
+test('conversion funnel joins product traffic to install, setup and first value', () => {
+  const { buildProductConversionFunnel } = loadUtility();
+  const tts = buildProductConversionFunnel(
+    { joins: 7, setupCompleted: 3, firstValue: 2 },
+    { productVisits: { tts: 41, helper: 9 } },
+    'tts',
+  );
+  assert.equal(tts.denominator, 41);
+  assert.deepEqual(JSON.parse(JSON.stringify(tts.rows)), [
+    { label: 'Visitas às páginas do produto', value: 41 },
+    { label: 'Instalações concluídas', value: 7 },
+    { label: 'Setup concluído', value: 3 },
+    { label: 'Primeiro valor', value: 2 },
+  ]);
+
+  const helper = buildProductConversionFunnel(
+    { joins: 4, setupCompleted: 2, firstValue: 1 },
+    { productVisits: { tts: 41, helper: 9 } },
+    'helper',
+  );
+  assert.equal(helper.denominator, 9);
+  assert.equal(helper.rows[0].value, 9);
+});
+
+test('conversion funnel stays honest while product traffic is unavailable', () => {
+  const { buildProductConversionFunnel } = loadUtility();
+  const funnel = buildProductConversionFunnel(
+    { joins: 5, setupCompleted: 2, firstValue: 1 },
+    null,
+    'tts',
+  );
+  assert.equal(funnel.denominator, 5);
+  assert.equal(funnel.rows[0].value, null);
+  assert.equal(funnel.rows[1].value, 5);
+  assert.match(page, /Visita → instalação → setup → primeiro valor/);
+  assert.match(page, /\$\('webAnalyticsDashboard'\)\.hidden = false/);
+});
+
 test('private panel distinguishes current ready servers from newly tracked setup events', () => {
   assert.match(page, /Servidores prontos/);
   assert.match(page, /configuredGuilds/);
-  assert.match(page, /Configurações novas/);
+  assert.match(page, /configurações novas/);
   assert.match(page, /Servidores com uso/);
   assert.match(page, /usedGuilds/);
   assert.match(page, /com reprodução registada/);
@@ -142,7 +180,7 @@ test('ninety-day summary keeps total inventory separate from measured growth', (
   assert.equal(summary.coverage, '90 dias selecionados · Medição desde 28/08/2026 · Base inicial: 168 servidores, sem datas históricas de entrada');
   assert.match(page, /growth-card__label">Servidores atuais/);
   assert.match(page, /id="growthCoverage"/);
-  assert.match(page, /Entradas medidas/);
+  assert.match(page, /Instalações concluídas/);
   assert.doesNotMatch(page, /growth-card__label">Entradas líquidas/);
 });
 

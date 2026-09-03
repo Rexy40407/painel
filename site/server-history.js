@@ -131,6 +131,30 @@
     };
   }
 
+  function buildProductConversionFunnel(growth, analytics, product) {
+    const count = (value) => Number.isFinite(Number(value))
+      ? Math.max(0, Math.trunc(Number(value)))
+      : 0;
+    const key = product === 'helper' ? 'helper' : 'tts';
+    const productVisits = analytics && analytics.productVisits;
+    const hasVisits = productVisits
+      && Object.prototype.hasOwnProperty.call(productVisits, key)
+      && Number.isFinite(Number(productVisits[key]));
+    const visits = hasVisits ? count(productVisits[key]) : null;
+    const installs = count(growth && growth.joins);
+    const setup = count(growth && growth.setupCompleted);
+    const firstValue = count(growth && growth.firstValue);
+    return {
+      denominator: visits !== null && visits > 0 ? visits : installs,
+      rows: [
+        { label: 'Visitas às páginas do produto', value: visits },
+        { label: 'Instalações concluídas', value: installs },
+        { label: 'Setup concluído', value: setup },
+        { label: 'Primeiro valor', value: firstValue },
+      ],
+    };
+  }
+
   return {
     normalizeTimestampMs,
     timestampFromGuild,
@@ -139,5 +163,6 @@
     countServerJoinsToday,
     buildGrowthInventorySummary,
     buildGrowthPeriodNote,
+    buildProductConversionFunnel,
   };
 }));

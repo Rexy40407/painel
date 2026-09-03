@@ -546,7 +546,7 @@
           <article class="growth-card"><span class="growth-card__label">Retenção</span><strong class="growth-card__value" id="growthRetention">—</strong><small class="growth-card__detail" id="growthRetentionDetail">A carregar</small></article>
         </div>
         <div class="growth-dashboard__lower">
-          <article class="growth-panel"><h3>Ativação das entradas medidas</h3><ol class="growth-funnel" id="growthFunnel" aria-label="Ativação das entradas medidas"></ol></article>
+          <article class="growth-panel"><h3>Visita → instalação → setup → primeiro valor</h3><ol class="growth-funnel" id="growthFunnel" aria-label="Funil de visita, instalação, setup e primeiro valor"></ol></article>
           <article class="growth-panel"><h3>Origens das entradas medidas</h3><ol class="growth-list" id="growthSources" aria-label="Origens das entradas medidas"></ol></article>
           <article class="growth-panel" id="growthTopggPanel"><h3>Top.gg</h3><ol class="growth-list" id="growthTopgg" aria-label="Estado da sincronização Top.gg"></ol></article>
         </div>
@@ -754,11 +754,22 @@
       const buildGrowthPeriodNote = serverHistory.buildGrowthPeriodNote || (() => ({
         message: 'Os valores grandes mostram o estado atual; o período filtra a evolução medida.',
       }));
+      const buildProductConversionFunnel = serverHistory.buildProductConversionFunnel || ((growth) => ({
+        denominator: Math.max(0, Number(growth && growth.joins) || 0),
+        rows: [
+          { label: 'Visitas às páginas do produto', value: null },
+          { label: 'Instalações concluídas', value: Math.max(0, Number(growth && growth.joins) || 0) },
+          { label: 'Setup concluído', value: Math.max(0, Number(growth && growth.setupCompleted) || 0) },
+          { label: 'Primeiro valor', value: Math.max(0, Number(growth && growth.firstValue) || 0) },
+        ],
+      }));
       let guildRows = [];
       let guildPage = 1;
       let growthDays = 30;
       let growthRequestId = 0;
       let webAnalyticsRequestId = 0;
+      let latestGrowthData = null;
+      let latestWebAnalyticsData = null;
 
       // Captura o token do fragmento (#access_token=…) após o redirect do OAuth e limpa o URL.
       (function () {
@@ -823,7 +834,7 @@
         // Before a product has a listing/token this shows the explicit
         // "not configured" state instead of hiding an operational gap.
         $('growthTopggPanel').hidden = false;
-        $('webAnalyticsDashboard').hidden = isHelperProduct;
+        $('webAnalyticsDashboard').hidden = false;
       }
 
       const authUrl = () =>
@@ -1215,7 +1226,7 @@
         $('panel').classList.add('show');
         armSessionIdle();
         loadPasses();
-        if (isHelperProduct) { loadHelperMetrics(); loadGrowthMetrics(); }
+        if (isHelperProduct) { loadHelperMetrics(); loadGrowthMetrics(); loadWebAnalytics(); }
         else {
           loadSystemMetrics();
           loadGrowthMetrics();
@@ -1223,7 +1234,7 @@
         }
         clearInterval(metricsTimer);
         metricsTimer = setInterval(() => {
-          if (isHelperProduct) { loadHelperMetrics(); loadGrowthMetrics(); }
+          if (isHelperProduct) { loadHelperMetrics(); loadGrowthMetrics(); loadWebAnalytics(); }
           else {
             loadSystemMetrics();
             loadGrowthMetrics();
@@ -1477,25 +1488,27 @@
       }
 
       function renderGrowthFunnel(data) {
-        const joins = Math.max(0, Number(data.joins) || 0);
-        const rows = [
-          ['Entradas medidas', joins],
-          [isHelperProduct ? 'Setup concluído' : 'Configurações novas', Math.max(0, Number(data.setupCompleted) || 0)],
-          ['Primeiro valor novo', Math.max(0, Number(data.firstValue) || 0)],
-        ];
+        const funnel = buildProductConversionFunnel(
+          data,
+          latestWebAnalyticsData,
+          isHelperProduct ? 'helper' : 'tts',
+        );
+        const denominator = Math.max(0, Number(funnel.denominator) || 0);
         const list = $('growthFunnel');
         list.replaceChildren();
-        rows.forEach(([label, value]) => {
+        funnel.rows.forEach(({ label, value }) => {
           const row = document.createElement('li');
           row.className = 'growth-funnel__row';
           const name = document.createElement('span');
           name.textContent = label;
           const metric = document.createElement('strong');
-          metric.textContent = String(value);
+          metric.textContent = value === null ? '—' : String(value);
           const bar = document.createElement('span');
           bar.className = 'growth-funnel__bar';
           const fill = document.createElement('i');
-          fill.style.width = joins ? Math.min(100, Math.round((value / joins) * 100)) + '%' : '0%';
+          fill.style.width = value !== null && denominator
+            ? Math.min(100, Math.round((value / denominator) * 100)) + '%'
+            : '0%';
           bar.append(fill);
           row.append(name, metric, bar);
           list.append(row);
@@ -1525,6 +1538,7 @@
       }
 
       function renderGrowthMetrics(data, days = growthDays) {
+        latestGrowthData = data;
         const dashboard = $('growthDashboard');
         dashboard.dataset.state = 'ready';
         const joins = Math.max(0, Number(data.joins) || 0);
@@ -1595,6 +1609,7 @@
       }
 
       function renderGrowthUnavailable() {
+        latestGrowthData = null;
         const dashboard = $('growthDashboard');
         dashboard.dataset.state = 'error';
         ['growthNet', 'growthSetupRate', 'growthActivationRate', 'growthRetention'].forEach((id) => { $(id).textContent = '—'; });
@@ -1634,6 +1649,7 @@
       }
 
       function renderWebAnalytics(data) {
+        latestWebAnalyticsData = data;
         const dashboard = $('webAnalyticsDashboard');
         dashboard.dataset.state = 'ready';
         $('webAnalyticsVisits').textContent = compactMetric(data.visits);
@@ -1650,9 +1666,11 @@
         replaceGrowthRows('webAnalyticsReferrers', (Array.isArray(data.referrers) ? data.referrers : []).map((item) => [String(item.label || '—'), compactMetric(item.value)]), 'Sem referências medidas neste período');
         replaceGrowthRows('webAnalyticsDevices', (Array.isArray(data.devices) ? data.devices : []).map((item) => [String(item.label || '—'), compactMetric(item.value)]), 'Sem dispositivos medidos neste período');
         $('webAnalyticsStatus').textContent = 'Atualizado ' + formatGrowthTimestamp(data.lastUpdated) + ' · ' + (data.partialData ? 'dados RUM podem ser bloqueados por extensões de privacidade' : 'dados agregados');
+        if (latestGrowthData) renderGrowthFunnel(latestGrowthData);
       }
 
       function renderWebAnalyticsUnavailable() {
+        latestWebAnalyticsData = null;
         const dashboard = $('webAnalyticsDashboard');
         dashboard.dataset.state = 'error';
         ['webAnalyticsVisits', 'webAnalyticsPageViews', 'webAnalyticsLcp', 'webAnalyticsInpCls'].forEach((id) => { $(id).textContent = '—'; });
@@ -1662,11 +1680,15 @@
         replaceGrowthRows('webAnalyticsReferrers', [], 'Cloudflare Web Analytics ainda não configurado');
         replaceGrowthRows('webAnalyticsDevices', [], 'Cloudflare Web Analytics ainda não configurado');
         $('webAnalyticsStatus').textContent = 'Tráfego público indisponível. A configuração e o token continuam apenas no servidor.';
+        if (latestGrowthData) renderGrowthFunnel(latestGrowthData);
       }
 
       async function loadWebAnalytics() {
         const requestId = ++webAnalyticsRequestId;
-        if (isHelperProduct || !session) return;
+        if (!session) {
+          renderWebAnalyticsUnavailable();
+          return;
+        }
         const dashboard = $('webAnalyticsDashboard');
         dashboard.dataset.state = 'loading';
         const [from, to] = growthDateRange(growthDays);
@@ -1686,7 +1708,7 @@
           growthDays = Number(button.dataset.growthRange) || 30;
           document.querySelectorAll('[data-growth-range]').forEach((item) => item.classList.toggle('is-active', item === button));
           loadGrowthMetrics();
-          if (!isHelperProduct) loadWebAnalytics();
+          loadWebAnalytics();
         });
       });
 
@@ -1952,6 +1974,7 @@
         if (isHelperProduct) {
           loadHelperMetrics();
           loadGrowthMetrics();
+          loadWebAnalytics();
         } else {
           loadSystemMetrics();
           loadGrowthMetrics();
