@@ -155,6 +155,33 @@
     };
   }
 
+  function buildGrowthDailySeries(daily) {
+    const count = (value) => Number.isFinite(Number(value))
+      ? Math.max(0, Math.trunc(Number(value)))
+      : 0;
+    const grouped = new Map();
+    for (const point of Array.isArray(daily) ? daily : []) {
+      if (!point || strictUtcDay(point.day) === null) continue;
+      const row = grouped.get(point.day) || {
+        day: point.day,
+        joins: 0,
+        leaves: 0,
+        setupCompleted: 0,
+        firstValue: 0,
+        active: 0,
+        votes: 0,
+      };
+      row.joins += count(point.joins);
+      row.leaves += count(point.leaves);
+      row.setupCompleted += count(point.setupCompleted);
+      row.firstValue += count(point.firstValue);
+      row.active += count(point.active);
+      row.votes += count(point.votes);
+      grouped.set(point.day, row);
+    }
+    return [...grouped.values()].sort((left, right) => left.day.localeCompare(right.day));
+  }
+
   return {
     normalizeTimestampMs,
     timestampFromGuild,
@@ -164,5 +191,6 @@
     buildGrowthInventorySummary,
     buildGrowthPeriodNote,
     buildProductConversionFunnel,
+    buildGrowthDailySeries,
   };
 }));

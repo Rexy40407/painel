@@ -168,7 +168,7 @@
       .confirm-btn:focus-visible, .confirm-x:focus-visible { outline: 2px solid var(--aqua); outline-offset: 2px; }
 
       /* ── Painel ─────────────────────────────────────────────── */
-      #panel { display: none; width: 100%; max-width: 1400px; padding: 30px 22px 80px; }
+      #panel { display: none; width: 100%; min-width: 0; max-width: 1400px; padding: 30px 22px 80px; }
       #panel.show { display: block; }
       .p-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
       .p-brand { display: inline-flex; align-items: center; gap: 12px; }
@@ -295,6 +295,16 @@
       .growth-funnel__row strong, .growth-list__row strong { color: var(--text-1); font-family: var(--f-mono); }
       .growth-funnel__bar { grid-column: 1 / -1; height: 5px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.1); }
       .growth-funnel__bar i { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--aqua), #6672ff); transition: width .25s ease; }
+      .growth-series-panel { margin-top: 13px; }
+      .growth-series-scroll { max-height: 292px; overflow: auto; border-radius: 8px; scrollbar-gutter: stable; }
+      .growth-series-scroll:focus-visible { outline: 2px solid var(--aqua); outline-offset: 3px; }
+      .growth-series-table { width: 100%; min-width: 650px; border-collapse: collapse; color: var(--text-2); font-size: 12px; }
+      .growth-series-table th, .growth-series-table td { padding: 9px 10px; border-bottom: 1px solid rgba(255,255,255,.07); text-align: right; white-space: nowrap; }
+      .growth-series-table th { position: sticky; top: 0; z-index: 1; color: var(--text-1); background: #0c0e1b; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+      .growth-series-table th:first-child, .growth-series-table td:first-child { text-align: left; }
+      .growth-series-table td:not(:first-child) { color: var(--text-1); font-family: var(--f-mono); }
+      .growth-series-table tr:last-child td { border-bottom: 0; }
+      .growth-series-empty { color: var(--text-2); text-align: left !important; font-family: var(--f-body) !important; }
       .growth-status { margin: 9px 0 0; color: var(--text-2); font: 11px/1.45 var(--f-mono); }
       .growth-period-note { margin: 10px 0 0; padding: 10px 12px; border: 1px solid rgba(46,230,200,.18); border-left: 2px solid var(--aqua); border-radius: 9px; color: var(--text-2); background: rgba(46,230,200,.045); font-size: 12px; line-height: 1.5; }
       .growth-dashboard[data-state="loading"] .growth-card__value { color: var(--text-2); }
@@ -550,6 +560,15 @@
           <article class="growth-panel"><h3>Origens das entradas medidas</h3><ol class="growth-list" id="growthSources" aria-label="Origens das entradas medidas"></ol></article>
           <article class="growth-panel" id="growthTopggPanel"><h3>Top.gg</h3><ol class="growth-list" id="growthTopgg" aria-label="Estado da sincronização Top.gg"></ol></article>
         </div>
+        <article class="growth-panel growth-series-panel">
+          <h3>Evolução diária</h3>
+          <div class="growth-series-scroll" tabindex="0" role="region" aria-label="Série diária de crescimento; desliza horizontalmente para ver todas as colunas">
+            <table class="growth-series-table">
+              <thead><tr><th scope="col">Data UTC</th><th scope="col">Entradas</th><th scope="col">Saídas</th><th scope="col">Setup</th><th scope="col">Primeiro valor</th><th scope="col">Ativos</th><th scope="col">Votos</th></tr></thead>
+              <tbody id="growthDaily"></tbody>
+            </table>
+          </div>
+        </article>
         <p class="growth-status" id="growthStatus" aria-live="polite">A carregar métricas de crescimento…</p>
       </section>
 
@@ -763,6 +782,7 @@
           { label: 'Primeiro valor', value: Math.max(0, Number(growth && growth.firstValue) || 0) },
         ],
       }));
+      const buildGrowthDailySeries = serverHistory.buildGrowthDailySeries || (() => []);
       let guildRows = [];
       let guildPage = 1;
       let growthDays = 30;
@@ -1517,6 +1537,39 @@
         });
       }
 
+      function renderGrowthDaily(data) {
+        const body = $('growthDaily');
+        body.replaceChildren();
+        const rows = buildGrowthDailySeries(data && data.daily);
+        if (!rows.length) {
+          const row = document.createElement('tr');
+          const cell = document.createElement('td');
+          cell.colSpan = 7;
+          cell.className = 'growth-series-empty';
+          cell.textContent = 'Sem eventos medidos neste período';
+          row.append(cell);
+          body.append(row);
+          return;
+        }
+        rows.forEach((point) => {
+          const row = document.createElement('tr');
+          [
+            point.day.split('-').reverse().join('/'),
+            point.joins,
+            point.leaves,
+            point.setupCompleted,
+            point.firstValue,
+            point.active,
+            point.votes,
+          ].forEach((value) => {
+            const cell = document.createElement('td');
+            cell.textContent = String(value);
+            row.append(cell);
+          });
+          body.append(row);
+        });
+      }
+
       function formatGrowthTimestamp(timestamp) {
         const value = Number(timestamp);
         if (!Number.isFinite(value) || value <= 0) return 'sem sincronização';
@@ -1581,6 +1634,7 @@
         $('growthRetention').textContent = 'W7 ' + w7;
         $('growthRetentionDetail').textContent = 'W30 ' + w30 + ' · coortes elegíveis apenas';
         renderGrowthFunnel(data, days);
+        renderGrowthDaily(data);
 
         const sourceCounts = new Map();
         (Array.isArray(data.daily) ? data.daily : []).forEach((row) => {
@@ -1626,6 +1680,7 @@
         replaceGrowthRows('growthSources', [], 'Dados indisponíveis');
         replaceGrowthRows('growthTopgg', [], 'Dados indisponíveis');
         $('growthFunnel').replaceChildren();
+        renderGrowthDaily(null);
         $('growthStatus').textContent = 'Erro ao carregar crescimento. A sessão e os IDs continuam privados.';
       }
 

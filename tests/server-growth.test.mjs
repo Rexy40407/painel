@@ -114,6 +114,22 @@ test('conversion funnel stays honest while product traffic is unavailable', () =
   assert.match(page, /\$\('webAnalyticsDashboard'\)\.hidden = false/);
 });
 
+test('daily growth series combines sources without losing events', () => {
+  const { buildGrowthDailySeries } = loadUtility();
+  const rows = buildGrowthDailySeries([
+    { day: '2026-09-02', source: 'home', joins: 2, leaves: 1, setupCompleted: 1, firstValue: 0, active: 4, votes: 1 },
+    { day: '2026-09-01', source: 'topgg', joins: 3, leaves: 0, setupCompleted: 2, firstValue: 1, active: 5, votes: 2 },
+    { day: '2026-09-02', source: 'topgg', joins: 1, leaves: 2, setupCompleted: 0, firstValue: 1, active: 3, votes: 4 },
+    { day: 'invalid', source: 'home', joins: 99 },
+  ]);
+  assert.deepEqual(JSON.parse(JSON.stringify(rows)), [
+    { day: '2026-09-01', joins: 3, leaves: 0, setupCompleted: 2, firstValue: 1, active: 5, votes: 2 },
+    { day: '2026-09-02', joins: 3, leaves: 3, setupCompleted: 1, firstValue: 1, active: 7, votes: 5 },
+  ]);
+  assert.match(page, /id="growthDaily"/);
+  assert.match(page, /Evolução diária/);
+});
+
 test('private panel distinguishes current ready servers from newly tracked setup events', () => {
   assert.match(page, /Servidores prontos/);
   assert.match(page, /configuredGuilds/);
