@@ -50,8 +50,10 @@ for (const viewport of [
 
     const note = page.locator('#growthPeriodNote');
     await expect(note).toBeVisible();
-    await expect(note).toContainText(/Histórico medido: [1-7] dias?/);
-    await expect(note).toContainText('7, 30 e 90 dias abrangem os mesmos dados');
+    // The measured-history count advances with calendar time. The UI must
+    // describe the real coverage instead of assuming the initial first week.
+    await expect(note).toContainText(/Histórico medido: \d+ dias?/);
+    await expect(note).toContainText('Os 90 dias selecionados abrangem todo o histórico medido');
     await expect(page.locator('#growthNet')).toHaveText('172');
 
     const geometry = await page.evaluate(() => {
