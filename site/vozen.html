@@ -377,6 +377,7 @@
       .tt-meta[data-source="measured"] { color: var(--text-1); }
       .tt-count { font-family: var(--f-mono); font-size: 13px; font-weight: 700; color: var(--aqua); }
     </style>
+    <link rel="stylesheet" href="panel-clarity.css" />
   </head>
   <body>
     <!-- ── Cartão de autenticação ───────────────────────────────────── -->
@@ -444,7 +445,7 @@
             </svg>
           </div>
           <div>
-            <div class="p-title">Vozen · Painel</div>
+            <h1 class="p-title">Vozen · Painel</h1>
             <div class="p-user" id="panelUser">sessão iniciada</div>
           </div>
         </div>
@@ -455,11 +456,26 @@
         <button class="p-logout" id="logoutBtn" type="button">Terminar sessão</button>
       </div>
 
-      <div class="tabs" role="tablist">
-        <button class="tab is-active" id="tabGrants" type="button">Passes</button>
-        <button class="tab" id="tabServers" type="button">Servidores</button>
+      <div class="tabs" role="tablist" aria-label="Áreas do painel">
+        <button class="tab is-active" id="tabOverview" data-panel-tab="overview" role="tab" aria-selected="true" aria-controls="growthDashboard" type="button">Resumo</button>
+        <button class="tab" id="tabWebsite" data-panel-tab="website" role="tab" aria-selected="false" aria-controls="webAnalyticsDashboard" tabindex="-1" type="button">Site</button>
+        <button class="tab" id="tabSystem" data-panel-tab="system" role="tab" aria-selected="false" aria-controls="systemDashboard" tabindex="-1" type="button">Sistema</button>
+        <button class="tab" id="tabServers" data-panel-tab="servers" role="tab" aria-selected="false" aria-controls="paneServers" tabindex="-1" type="button">Servidores</button>
+        <button class="tab" id="tabGrants" data-panel-tab="grants" role="tab" aria-selected="false" aria-controls="paneGrants" tabindex="-1" type="button">Passes</button>
       </div>
 
+      <div class="analytics-toolbar" id="analyticsToolbar">
+        <div><strong>Período de análise</strong><span id="analyticsRangeLabel">Últimos 30 dias · inclui hoje · UTC</span></div>
+        <div class="growth-dashboard__controls" role="group" aria-label="Período de crescimento e tráfego">
+          <button class="growth-range" data-growth-range="7" aria-pressed="false" type="button">7 dias</button>
+          <button class="growth-range is-active" data-growth-range="30" aria-pressed="true" type="button">30 dias</button>
+          <button class="growth-range" data-growth-range="90" aria-pressed="false" type="button">90 dias</button>
+          <button class="growth-range" id="analyticsRefresh" type="button">Atualizar</button>
+        </div>
+      </div>
+
+      <section id="systemDashboard" role="tabpanel" aria-labelledby="tabSystem" hidden>
+      <div class="section-intro"><h2>Sistema e infraestrutura</h2><p>Leituras atuais do produto, armazenamento e sincronização. Não dependem do período de análise.</p></div>
       <section class="ops" aria-label="Estado operacional do Vozen">
         <div class="ops__storage">
         <article class="ops__metric" id="databaseMetric" data-state="unknown">
@@ -525,7 +541,7 @@
             </details>
           </article>
           <article class="ops__metric" id="outboxMetric" data-state="unknown">
-            <div class="ops__top"><span class="ops__label">Mirror outbox</span><span class="ops__state" id="outboxState">Sem leitura</span></div>
+            <div class="ops__top"><span class="ops__label">Fila de sincronização</span><span class="ops__state" id="outboxState">Sem leitura</span></div>
             <strong class="ops__value" id="outboxRows" aria-live="polite">-</strong>
             <p class="ops__detail" id="outboxDetail">Batches pendentes no mirror PostgreSQL</p>
           </article>
@@ -534,57 +550,68 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8.1 8.1 0 0 0-14.4-4.8L3 9"/><path d="M3 4v5h5"/><path d="M4 13a8.1 8.1 0 0 0 14.4 4.8L21 15"/><path d="M21 20v-5h-5"/></svg>
         </button>
       </section>
+      <article class="growth-panel" id="growthTopggPanel"><h3>Sincronização Top.gg</h3><p class="section-help">Estado atual da contagem enviada ao diretório. Os votos respeitam o período de análise.</p><ol class="growth-list" id="growthTopgg" aria-label="Estado da sincronização Top.gg"></ol></article>
+      </section>
 
-      <section class="growth-dashboard" id="growthDashboard" data-state="loading" aria-labelledby="growthTitle">
+      <section class="growth-dashboard" id="growthDashboard" data-state="loading" role="tabpanel" aria-labelledby="tabOverview">
         <div class="growth-dashboard__head">
           <div>
-            <h2 id="growthTitle">Crescimento do TTS</h2>
-            <p>Total atual e evolução medida por servidor. Sem IDs de servidores ou utilizadores.</p>
+            <span class="section-eyebrow">VISÃO GERAL</span>
+            <h2 id="growthTitle">Resumo do TTS</h2>
+            <p>Quantos servidores tens, quantos já usaram o bot e como está a crescer.</p>
           </div>
-          <div class="growth-dashboard__controls" aria-label="Período das métricas de crescimento">
-            <button class="growth-range" data-growth-range="7" type="button">7 dias</button>
-            <button class="growth-range is-active" data-growth-range="30" type="button">30 dias</button>
-            <button class="growth-range" data-growth-range="90" type="button">90 dias</button>
-          </div>
+          <button class="health-link" id="topggSummary" type="button">Top.gg · A verificar</button>
         </div>
-        <p class="growth-status" id="growthCoverage">A verificar a cobertura da medição…</p>
-        <p class="growth-period-note" id="growthPeriodNote" aria-live="polite">A verificar como o período afeta os valores…</p>
-        <div class="growth-cards">
+        <div class="metric-group-heading"><h3>Estado atual</h3><span>Não muda com o filtro de datas</span></div>
+        <div class="growth-cards snapshot-cards">
           <article class="growth-card"><span class="growth-card__label">Servidores atuais</span><strong class="growth-card__value" id="growthNet">—</strong><small class="growth-card__detail" id="growthJoins">A carregar</small></article>
           <article class="growth-card"><span class="growth-card__label" id="growthSetupLabel">Servidores prontos</span><strong class="growth-card__value" id="growthSetupRate">—</strong><small class="growth-card__detail" id="growthSetupDetail">A carregar</small></article>
           <article class="growth-card"><span class="growth-card__label" id="growthActivationLabel">Servidores com uso</span><strong class="growth-card__value" id="growthActivationRate">—</strong><small class="growth-card__detail" id="growthActivationDetail">A carregar</small></article>
-          <article class="growth-card"><span class="growth-card__label">Retenção</span><strong class="growth-card__value" id="growthRetention">—</strong><small class="growth-card__detail" id="growthRetentionDetail">A carregar</small></article>
         </div>
+        <div class="metric-group-heading"><h3>Movimento no período</h3><span id="movementRange">Últimos 30 dias</span></div>
+        <p class="section-help" id="coverageSummary" aria-live="polite">A verificar o histórico disponível…</p>
+        <div class="growth-cards period-cards">
+          <article class="growth-card"><span class="growth-card__label">Crescimento líquido</span><strong class="growth-card__value" id="periodNet">—</strong><small class="growth-card__detail">Entradas menos saídas medidas</small></article>
+          <article class="growth-card"><span class="growth-card__label">Entradas</span><strong class="growth-card__value" id="periodJoins">—</strong><small class="growth-card__detail">Inclui reentradas; não são visitas ao site</small></article>
+          <article class="growth-card"><span class="growth-card__label">Saídas</span><strong class="growth-card__value" id="periodLeaves">—</strong><small class="growth-card__detail">Bot removido de servidores</small></article>
+        </div>
+        <details class="coverage-details"><summary>Como interpretar os números e o histórico</summary>
+          <p class="growth-status" id="growthCoverage">A verificar a cobertura da medição…</p>
+          <p class="growth-period-note" id="growthPeriodNote" aria-live="polite">A verificar como o período afeta os valores…</p>
+          <p class="section-help">Os totais atuais e os eventos do período são medidas diferentes. Não reconstruímos entradas antigas quando não existe uma data fiável. «—» significa que não há dados suficientes; zero é uma contagem medida.</p>
+        </details>
         <div class="growth-dashboard__lower">
-          <article class="growth-panel"><h3>Visita → instalação → setup → primeiro valor</h3><ol class="growth-funnel" id="growthFunnel" aria-label="Funil de visita, instalação, setup e primeiro valor"></ol></article>
+          <article class="growth-panel"><h3>Da descoberta ao primeiro uso</h3><p class="section-help">Contagens independentes no período, não uma taxa de conversão: as visitas são anónimas e as entradas também podem vir de fora do site.</p><ol class="growth-funnel" id="growthFunnel" aria-label="Visitas, entradas, configurações e primeiro uso no período"></ol></article>
           <article class="growth-panel"><h3>Origens das entradas medidas</h3><ol class="growth-list" id="growthSources" aria-label="Origens das entradas medidas"></ol></article>
-          <article class="growth-panel" id="growthTopggPanel"><h3>Top.gg</h3><ol class="growth-list" id="growthTopgg" aria-label="Estado da sincronização Top.gg"></ol></article>
+          <article class="growth-panel"><h3>Voltaram a usar?</h3><strong class="growth-card__value" id="growthRetention">—</strong><p class="growth-card__detail" id="growthRetentionDetail">A carregar</p><p class="section-help">Atividade no dia 7 e no dia 30 após a ativação. Só contam servidores que já chegaram a essas datas.</p></article>
         </div>
-        <article class="growth-panel growth-series-panel">
-          <h3>Evolução diária</h3>
+        <details class="growth-panel growth-series-panel">
+          <summary>Ver os números dia a dia</summary>
           <div class="growth-series-scroll" tabindex="0" role="region" aria-label="Série diária de crescimento; desliza horizontalmente para ver todas as colunas">
             <table class="growth-series-table">
               <thead><tr><th scope="col">Data UTC</th><th scope="col">Entradas</th><th scope="col">Saídas</th><th scope="col">Setup</th><th scope="col">Primeiro valor</th><th scope="col">Ativos</th><th scope="col">Votos</th></tr></thead>
               <tbody id="growthDaily"></tbody>
             </table>
           </div>
-        </article>
+        </details>
         <p class="growth-status" id="growthStatus" aria-live="polite">A carregar métricas de crescimento…</p>
       </section>
 
-      <section class="growth-dashboard" id="webAnalyticsDashboard" data-state="loading" aria-labelledby="webAnalyticsTitle">
+      <section class="growth-dashboard" id="webAnalyticsDashboard" data-state="loading" role="tabpanel" aria-labelledby="tabWebsite" hidden>
         <div class="growth-dashboard__head">
           <div>
-            <h2 id="webAnalyticsTitle">Tráfego público</h2>
-            <p>Cloudflare Web Analytics, agregado e sem cookies. Esta leitura nunca inclui IDs de servidores ou utilizadores.</p>
+            <span class="section-eyebrow">VOZEN.ORG</span>
+            <h2 id="webAnalyticsTitle">Visitas e experiência no site</h2>
+            <p>Todo o site público, incluindo TTS e Helper. Trocar de produto não filtra este tráfego. Fonte: Cloudflare, sem cookies.</p>
           </div>
         </div>
         <div class="growth-cards">
           <article class="growth-card"><span class="growth-card__label">Visitas</span><strong class="growth-card__value" id="webAnalyticsVisits">—</strong><small class="growth-card__detail">Entradas em páginas públicas</small></article>
           <article class="growth-card"><span class="growth-card__label">Páginas vistas</span><strong class="growth-card__value" id="webAnalyticsPageViews">—</strong><small class="growth-card__detail">Medição real de browser</small></article>
-          <article class="growth-card"><span class="growth-card__label">LCP p75</span><strong class="growth-card__value" id="webAnalyticsLcp">—</strong><small class="growth-card__detail" id="webAnalyticsLcpDetail">Objetivo &lt; 2,5 s</small></article>
-          <article class="growth-card"><span class="growth-card__label">INP / CLS p75</span><strong class="growth-card__value" id="webAnalyticsInpCls">—</strong><small class="growth-card__detail" id="webAnalyticsVitalsDetail">Objetivos &lt; 200 ms / &lt; 0,1</small></article>
+          <article class="growth-card"><span class="growth-card__label">Carregamento · LCP</span><strong class="growth-card__value" id="webAnalyticsLcp">—</strong><small class="growth-card__detail" id="webAnalyticsLcpDetail">Objetivo &lt; 2,5 s</small></article>
+          <article class="growth-card"><span class="growth-card__label">Resposta / estabilidade</span><strong class="growth-card__value" id="webAnalyticsInpCls">—</strong><small class="growth-card__detail" id="webAnalyticsVitalsDetail">INP &lt; 200 ms / CLS &lt; 0,1</small></article>
         </div>
+        <p class="section-help">Desempenho real no percentil 75: 75% das medições ficam neste valor ou abaixo. LCP mede carregamento, INP a resposta às interações e CLS os saltos de layout. Poucas amostras não permitem validar a experiência geral.</p>
         <div class="growth-dashboard__lower">
           <article class="growth-panel"><h3>Páginas principais</h3><ol class="growth-list" id="webAnalyticsPages" aria-label="Páginas públicas mais vistas"></ol></article>
           <article class="growth-panel"><h3>Referências</h3><ol class="growth-list" id="webAnalyticsReferrers" aria-label="Principais referências"></ol></article>
@@ -594,7 +621,7 @@
       </section>
 
       <!-- Tab: Passes -->
-      <div id="paneGrants">
+      <div id="paneGrants" role="tabpanel" aria-labelledby="tabGrants" hidden>
         <div class="box">
           <h2>Conceder passe</h2>
           <div class="grantgrid">
@@ -656,7 +683,7 @@
       </div>
 
       <!-- Tab: Servidores -->
-      <div id="paneServers" style="display:none">
+      <div id="paneServers" role="tabpanel" aria-labelledby="tabServers" hidden>
         <div class="servers-grid">
           <div class="box">
             <div class="box-head">
@@ -771,7 +798,8 @@
         coverage: 'Cobertura da medição indisponível',
       }));
       const buildGrowthPeriodNote = serverHistory.buildGrowthPeriodNote || (() => ({
-        message: 'Os valores grandes mostram o estado atual; o período filtra a evolução medida.',
+        historyDays: null,
+        message: 'A secção Estado atual não muda com as datas. O período filtra a evolução medida.',
       }));
       const buildProductConversionFunnel = serverHistory.buildProductConversionFunnel || ((growth) => ({
         denominator: Math.max(0, Number(growth && growth.joins) || 0),
@@ -850,13 +878,11 @@
           document.querySelector('#supabaseMetric .ops__label').textContent = 'Supabase';
           $('topTalkersTitle').textContent = 'Top 10 — pessoas com mais mensagens';
         }
-        $('growthDashboard').hidden = false;
-        $('growthTitle').textContent = isHelperProduct ? 'Crescimento do Helper' : 'Crescimento do TTS';
+        $('growthTitle').textContent = isHelperProduct ? 'Resumo do Helper' : 'Resumo do TTS';
         // Both products use the same aggregate-only Top.gg health contract.
         // Before a product has a listing/token this shows the explicit
         // "not configured" state instead of hiding an operational gap.
         $('growthTopggPanel').hidden = false;
-        $('webAnalyticsDashboard').hidden = false;
       }
 
       const authUrl = () =>
@@ -1489,6 +1515,7 @@
       }
 
       function growthPercent(numerator, denominator) {
+        if (numerator === null || numerator === undefined || denominator === null || denominator === undefined) return '—';
         if (!Number.isFinite(Number(numerator)) || !Number.isFinite(Number(denominator)) || Number(denominator) <= 0) return '—';
         return Math.round((Number(numerator) / Number(denominator)) * 100) + '%';
       }
@@ -1515,14 +1542,15 @@
           latestWebAnalyticsDays === days ? latestWebAnalyticsData : null,
           isHelperProduct ? 'helper' : 'tts',
         );
-        const denominator = Math.max(0, Number(funnel.denominator) || 0);
+        // These are independently measured populations, not nested cohorts.
+        const denominator = Math.max(0, ...funnel.rows.map(row => Number(row.value) || 0));
         const list = $('growthFunnel');
         list.replaceChildren();
         funnel.rows.forEach(({ label, value }) => {
           const row = document.createElement('li');
           row.className = 'growth-funnel__row';
           const name = document.createElement('span');
-          name.textContent = label;
+          name.textContent = ({ 'Instalações concluídas': 'Entradas de servidores', 'Setup concluído': 'Primeiras configurações', 'Primeiro valor': 'Primeiros usos bem-sucedidos' })[label] || label;
           const metric = document.createElement('strong');
           metric.textContent = value === null ? '—' : String(value);
           const bar = document.createElement('span');
@@ -1602,37 +1630,35 @@
         const periodNote = buildGrowthPeriodNote(data, days);
         $('growthNet').textContent = inventory.current;
         $('growthNet').className = 'growth-card__value';
-        $('growthJoins').textContent = inventory.detail;
+        $('growthJoins').textContent = 'Servidores onde o bot está instalado agora';
+        const leaves = Math.max(0, Number(data.leaves) || 0);
+        const net = joins - leaves;
+        $('periodNet').textContent = (net > 0 ? '+' : '') + net;
+        $('periodNet').className = 'growth-card__value' + (net > 0 ? ' is-positive' : net < 0 ? ' is-warning' : '');
+        $('periodJoins').textContent = String(joins);
+        $('periodLeaves').textContent = String(leaves);
+        $('movementRange').textContent = 'Últimos ' + days + ' dias · inclui hoje';
         $('growthCoverage').textContent = inventory.coverage;
         $('growthPeriodNote').textContent = periodNote.message;
+        $('coverageSummary').textContent = periodNote.historyDays === null ? 'Início do histórico indisponível.'
+          : 'Histórico disponível: ' + periodNote.historyDays + ' dias.' + (periodNote.includesFullHistory ? ' Este período abrange todos os dados medidos.' : ' A mostrar apenas os dias selecionados.');
         const currentGuilds = Math.max(0, Number(data.currentGuilds) || 0);
         const configuredGuilds = Math.max(0, Number(data.configuredGuilds) || 0);
-        $('growthSetupLabel').textContent = isHelperProduct ? 'Setup concluído' : 'Servidores prontos';
-        if (isHelperProduct) {
-          $('growthSetupRate').textContent = growthPercent(data.setupCompleted, joins);
-          $('growthSetupDetail').textContent = (Number(data.setupCompleted) || 0) + ' setups concluídos';
-        } else {
-          $('growthSetupRate').textContent = growthPercent(configuredGuilds, currentGuilds);
-          $('growthSetupDetail').textContent = configuredGuilds + ' canais TTS ativos · ' + (Number(data.setupCompleted) || 0) + ' configurações novas';
-        }
-        if (isHelperProduct) {
-          $('growthActivationLabel').textContent = 'Primeiro valor';
-          $('growthActivationRate').textContent = growthPercent(data.firstValue, joins);
-          $('growthActivationDetail').textContent = (Number(data.firstValue) || 0) + ' primeiras ações úteis';
-        } else {
-          const usedGuilds = Math.max(0, Number(data.usedGuilds) || 0);
-          $('growthActivationLabel').textContent = 'Servidores com uso';
-          $('growthActivationRate').textContent = growthPercent(usedGuilds, currentGuilds);
-          $('growthActivationDetail').textContent = usedGuilds + ' com reprodução registada · ' + (Number(data.firstValue) || 0) + ' primeiros usos novos';
-        }
+        $('growthSetupLabel').textContent = 'Com configuração';
+        $('growthSetupRate').textContent = growthPercent(data.configuredGuilds, data.currentGuilds);
+        $('growthSetupDetail').textContent = data.configuredGuilds == null ? 'Configuração atual indisponível' : configuredGuilds + ' de ' + currentGuilds + (isHelperProduct ? ' servidores · módulo configurado' : ' servidores · canal TTS configurado');
+        const usedGuilds = Math.max(0, Number(data.usedGuilds) || 0);
+        $('growthActivationLabel').textContent = 'Já usaram o bot';
+        $('growthActivationRate').textContent = growthPercent(data.usedGuilds, data.currentGuilds);
+        $('growthActivationDetail').textContent = data.usedGuilds == null ? 'Histórico de uso indisponível' : usedGuilds + ' de ' + currentGuilds + ' servidores atuais · uso registado em qualquer data';
         const w7 = data.retainedW7Rate === null || data.retainedW7Rate === undefined
           ? growthPercent(data.retainedW7, data.eligibleW7)
           : Math.round(Number(data.retainedW7Rate) * 100) + '%';
         const w30 = data.retainedW30Rate === null || data.retainedW30Rate === undefined
           ? growthPercent(data.retainedW30, data.eligibleW30)
           : Math.round(Number(data.retainedW30Rate) * 100) + '%';
-        $('growthRetention').textContent = 'W7 ' + w7;
-        $('growthRetentionDetail').textContent = 'W30 ' + w30 + ' · coortes elegíveis apenas';
+        $('growthRetention').textContent = 'Dia 7 · ' + w7;
+        $('growthRetentionDetail').textContent = 'Dia 30 · ' + w30 + (w7 === '—' && w30 === '—' ? ' · Sem servidores elegíveis ou dados suficientes' : ' · apenas servidores elegíveis');
         renderGrowthFunnel(data, days);
         renderGrowthDaily(data);
 
@@ -1645,15 +1671,19 @@
           .filter(([source, count]) => source !== 'baseline' && count > 0)
           .sort((left, right) => right[1] - left[1])
           .slice(0, 5)
-          .map(([source, count]) => [source, String(count)]), 'Sem origens neste período');
+          .map(([source, count]) => [source === 'unknown' ? 'Origem não identificada' : source, String(count)]), 'Sem origens neste período');
 
         const topgg = data.topgg && typeof data.topgg === 'object' ? data.topgg : null;
+        const topggState = !topgg || topgg.lastDetail === 'unconfigured' ? 'Não configurado'
+          : topgg.alert ? 'Precisa de atenção' : topgg.healthy === true ? 'Saudável' : 'A confirmar';
+        $('topggSummary').textContent = 'Top.gg · ' + topggState;
+        $('topggSummary').dataset.state = topgg && topgg.alert ? 'warning' : 'neutral';
         if (!topgg) {
           replaceGrowthRows('growthTopgg', [['Não configurado', '—']], 'Não configurado');
         } else {
           const failures = Math.max(0, Number(topgg.consecutiveFailures) || 0);
           replaceGrowthRows('growthTopgg', [
-            ['Estado', topgg.alert ? 'Alerta: rever agora' : 'Saudável'],
+            ['Estado', topggState],
             ['Votos válidos', String(Math.max(0, Number(data.votes) || 0))],
             ['Diagnóstico', formatTopggDetail(topgg.lastDetail)],
             ['Último sucesso', formatGrowthTimestamp(topgg.lastSuccessAt)],
@@ -1670,8 +1700,11 @@
         latestGrowthDays = null;
         const dashboard = $('growthDashboard');
         dashboard.dataset.state = 'error';
-        ['growthNet', 'growthSetupRate', 'growthActivationRate', 'growthRetention'].forEach((id) => { $(id).textContent = '—'; });
+        ['growthNet', 'growthSetupRate', 'growthActivationRate', 'growthRetention', 'periodNet', 'periodJoins', 'periodLeaves'].forEach((id) => { $(id).textContent = '—'; });
+        $('topggSummary').textContent = 'Top.gg · Indisponível';
+        $('topggSummary').dataset.state = 'warning';
         $('growthCoverage').textContent = 'Cobertura da medição indisponível';
+        $('coverageSummary').textContent = 'Histórico indisponível. Tenta atualizar.';
         $('growthPeriodNote').textContent = 'Não foi possível avaliar como o período afeta estes valores.';
         $('growthJoins').textContent = 'Não foi possível obter entradas e saídas';
         $('growthSetupDetail').textContent = 'Tenta atualizar novamente';
@@ -1690,6 +1723,7 @@
         const requestedDays = growthDays;
         const dashboard = $('growthDashboard');
         dashboard.dataset.state = 'loading';
+        $('growthStatus').textContent = 'A atualizar o período de ' + requestedDays + ' dias…';
         const [from, to] = growthDateRange(requestedDays);
         try {
           const path = '/api/admin/growth?product=' + (isHelperProduct ? 'helper' : 'tts') + '&from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to);
@@ -1715,9 +1749,9 @@
         $('webAnalyticsVisits').textContent = compactMetric(data.visits);
         $('webAnalyticsPageViews').textContent = compactMetric(data.pageViews);
         const vitals = data.coreWebVitals && typeof data.coreWebVitals === 'object' ? data.coreWebVitals : {};
-        const lcp = Number(vitals.lcpP75Ms);
-        const inp = Number(vitals.inpP75Ms);
-        const cls = Number(vitals.clsP75);
+        const lcp = vitals.lcpP75Ms == null ? NaN : Number(vitals.lcpP75Ms);
+        const inp = vitals.inpP75Ms == null ? NaN : Number(vitals.inpP75Ms);
+        const cls = vitals.clsP75 == null ? NaN : Number(vitals.clsP75);
         $('webAnalyticsLcp').textContent = Number.isFinite(lcp) && lcp >= 0 ? (lcp / 1000).toLocaleString('pt-PT', { maximumFractionDigits: 2 }) + ' s' : '—';
         $('webAnalyticsInpCls').textContent = (Number.isFinite(inp) && inp >= 0 ? Math.round(inp) + ' ms' : '—') + ' / ' + (Number.isFinite(cls) && cls >= 0 ? cls.toLocaleString('pt-PT', { maximumFractionDigits: 3 }) : '—');
         const samples = Math.max(0, Number(vitals.sampleCount) || 0);
@@ -1737,9 +1771,9 @@
         ['webAnalyticsVisits', 'webAnalyticsPageViews', 'webAnalyticsLcp', 'webAnalyticsInpCls'].forEach((id) => { $(id).textContent = '—'; });
         $('webAnalyticsLcpDetail').textContent = 'Objetivo < 2,5 s';
         $('webAnalyticsVitalsDetail').textContent = 'Objetivos < 200 ms / < 0,1';
-        replaceGrowthRows('webAnalyticsPages', [], 'Cloudflare Web Analytics ainda não configurado');
-        replaceGrowthRows('webAnalyticsReferrers', [], 'Cloudflare Web Analytics ainda não configurado');
-        replaceGrowthRows('webAnalyticsDevices', [], 'Cloudflare Web Analytics ainda não configurado');
+        replaceGrowthRows('webAnalyticsPages', [], 'Dados indisponíveis · tenta atualizar');
+        replaceGrowthRows('webAnalyticsReferrers', [], 'Dados indisponíveis · tenta atualizar');
+        replaceGrowthRows('webAnalyticsDevices', [], 'Dados indisponíveis · tenta atualizar');
         $('webAnalyticsStatus').textContent = 'Tráfego público indisponível. A configuração e o token continuam apenas no servidor.';
         if (latestGrowthData) renderGrowthFunnel(latestGrowthData, latestGrowthDays);
       }
@@ -1768,10 +1802,18 @@
       document.querySelectorAll('[data-growth-range]').forEach((button) => {
         button.addEventListener('click', () => {
           growthDays = Number(button.dataset.growthRange) || 30;
-          document.querySelectorAll('[data-growth-range]').forEach((item) => item.classList.toggle('is-active', item === button));
+          document.querySelectorAll('[data-growth-range]').forEach((item) => {
+            item.classList.toggle('is-active', item === button);
+            item.setAttribute('aria-pressed', String(item === button));
+          });
+          $('analyticsRangeLabel').textContent = 'Últimos ' + growthDays + ' dias · inclui hoje · UTC';
           loadGrowthMetrics();
           loadWebAnalytics();
         });
+      });
+      $('analyticsRefresh').addEventListener('click', () => {
+        loadGrowthMetrics();
+        loadWebAnalytics();
       });
 
       function renderServerGrowth(guilds) {
@@ -2045,16 +2087,34 @@
       });
 
       // Tabs
-      $('tabGrants').addEventListener('click', () => switchTab('grants'));
-      $('tabServers').addEventListener('click', () => switchTab('servers'));
+      const panelTabs = [...document.querySelectorAll('[data-panel-tab]')];
+      panelTabs.forEach((tab, index) => {
+        tab.addEventListener('click', () => switchTab(tab.dataset.panelTab));
+        tab.addEventListener('keydown', event => {
+          const next = event.key === 'ArrowRight' ? (index + 1) % panelTabs.length
+            : event.key === 'ArrowLeft' ? (index + panelTabs.length - 1) % panelTabs.length
+            : event.key === 'Home' ? 0 : event.key === 'End' ? panelTabs.length - 1 : null;
+          if (next === null) return;
+          event.preventDefault();
+          panelTabs[next].focus();
+          switchTab(panelTabs[next].dataset.panelTab);
+        });
+      });
+      $('topggSummary').addEventListener('click', () => {
+        switchTab('system');
+        $('tabSystem').focus();
+      });
       let serversLoaded = false;
       function switchTab(which) {
-        const g = which === 'grants';
-        $('tabGrants').classList.toggle('is-active', g);
-        $('tabServers').classList.toggle('is-active', !g);
-        $('paneGrants').style.display = g ? '' : 'none';
-        $('paneServers').style.display = g ? 'none' : '';
-        if (!g && !serversLoaded) {
+        panelTabs.forEach(tab => {
+          const selected = tab.dataset.panelTab === which;
+          tab.classList.toggle('is-active', selected);
+          tab.setAttribute('aria-selected', String(selected));
+          tab.tabIndex = selected ? 0 : -1;
+          $(tab.getAttribute('aria-controls')).hidden = !selected;
+        });
+        $('analyticsToolbar').hidden = !['overview', 'website'].includes(which);
+        if (which === 'servers' && !serversLoaded) {
           loadGuilds();
           loadTopTalkers();
         }

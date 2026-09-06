@@ -96,7 +96,7 @@
     const todayKey = today || new Date().toISOString().slice(0, 10);
     const todayTimestamp = strictUtcDay(todayKey);
     const selectedDays = Number.isFinite(Number(days)) ? Math.max(0, Math.trunc(Number(days))) : 0;
-    const scope = ' Os valores grandes mostram o estado atual; o período filtra entradas, saídas, configurações novas, primeiro valor e origens.';
+    const scope = ' A secção Estado atual não muda com as datas. O período filtra entradas, saídas, primeiras configurações, primeiro uso e origens; não altera os totais atuais.';
 
     if (startTimestamp === null || todayTimestamp === null || todayTimestamp < startTimestamp) {
       return {

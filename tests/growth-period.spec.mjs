@@ -49,6 +49,7 @@ for (const viewport of [
     await showGrowthPanel(page, 90);
 
     const note = page.locator('#growthPeriodNote');
+    await page.getByText('Como interpretar os números e o histórico', { exact: true }).click();
     await expect(note).toBeVisible();
     // The measured-history count advances with calendar time. The UI must
     // describe the real coverage instead of assuming the initial first week.

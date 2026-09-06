@@ -69,7 +69,7 @@ test('private panel renders each product growth from its authenticated aggregate
   assert.match(page, /function loadGrowthMetrics\(\)/);
   assert.match(page, /product=' \+ \(isHelperProduct \? 'helper' : 'tts'\)/);
   assert.match(page, /isHelperProduct \? helperJson\(path\) : adminJson\(path\)/);
-  assert.match(page, /Sem IDs de servidores ou utilizadores/);
+  assert.match(page, /dados agregados por servidor/);
   assert.match(page, /growthTopggPanel'\)\.hidden = false/);
   assert.match(page, /function loadWebAnalytics\(\)/);
   assert.match(page, /adminJson\('\/api\/admin\/web-analytics\?from='/);
@@ -110,8 +110,8 @@ test('conversion funnel stays honest while product traffic is unavailable', () =
   assert.equal(funnel.denominator, 5);
   assert.equal(funnel.rows[0].value, null);
   assert.equal(funnel.rows[1].value, 5);
-  assert.match(page, /Visita → instalação → setup → primeiro valor/);
-  assert.match(page, /\$\('webAnalyticsDashboard'\)\.hidden = false/);
+  assert.match(page, /Contagens independentes no período, não uma taxa de conversão/);
+  assert.match(page, /aria-controls="webAnalyticsDashboard"/);
 });
 
 test('daily growth series combines sources without losing events', () => {
@@ -127,16 +127,16 @@ test('daily growth series combines sources without losing events', () => {
     { day: '2026-09-02', joins: 3, leaves: 3, setupCompleted: 1, firstValue: 1, active: 7, votes: 5 },
   ]);
   assert.match(page, /id="growthDaily"/);
-  assert.match(page, /Evolução diária/);
+  assert.match(page, /Ver os números dia a dia/);
 });
 
 test('private panel distinguishes current ready servers from newly tracked setup events', () => {
-  assert.match(page, /Servidores prontos/);
+  assert.match(page, /Com configuração/);
   assert.match(page, /configuredGuilds/);
-  assert.match(page, /configurações novas/);
-  assert.match(page, /Servidores com uso/);
+  assert.match(page, /Primeiras configurações/);
+  assert.match(page, /Já usaram o bot/);
   assert.match(page, /usedGuilds/);
-  assert.match(page, /com reprodução registada/);
+  assert.match(page, /uso registado em qualquer data/);
   assert.match(page, /source !== 'baseline'/);
 });
 
@@ -147,7 +147,7 @@ test('growth period note explains when every selector contains the full measured
   assert.equal(note.includesFullHistory, true);
   assert.match(note.message, /Histórico medido: 2 dias/);
   assert.match(note.message, /7, 30 e 90 dias abrangem os mesmos dados/);
-  assert.match(note.message, /valores grandes mostram o estado atual/);
+  assert.match(note.message, /Estado atual não muda com as datas/);
 });
 
 test('growth period note keeps a partial window distinct after more than seven measured days', () => {
@@ -178,7 +178,7 @@ test('private panel presents the period explanation beside the range controls', 
   assert.match(page, /id="growthPeriodNote"[^>]*aria-live="polite"/);
   assert.match(page, /buildGrowthPeriodNote/);
   assert.match(page, /\$\('growthPeriodNote'\)\.textContent = periodNote\.message/);
-  assert.match(page, /valores grandes mostram o estado atual/);
+  assert.match(page, /Estado atual não muda com as datas/);
 });
 
 test('ninety-day summary keeps total inventory separate from measured growth', () => {
