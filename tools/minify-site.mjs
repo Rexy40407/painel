@@ -20,6 +20,10 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'site');
 const OUT = join(ROOT, 'site-dist');
 
+// The private dashboard moved to painel.painelpessoal.online. Keep its source
+// for history/tests, but never publish the old GitHub Pages entry point again.
+const RETIRED_PAGES = new Set(['vozen.html']);
+
 // Só a página principal é minificada. As páginas legais ficam legíveis.
 const MINIFY_HTML = new Set(['index.html']);
 
@@ -68,6 +72,7 @@ async function run() {
   let copied = 0;
   for (const file of files) {
     const rel = relative(SRC, file);
+    if (RETIRED_PAGES.has(rel)) continue;
     const outPath = join(OUT, rel);
     await mkdir(dirname(outPath), { recursive: true });
     const ext = extname(file).toLowerCase();

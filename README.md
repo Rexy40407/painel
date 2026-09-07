@@ -30,6 +30,14 @@ para esta página; não há segredos Discord no bundle público.
 
 ## Publicação
 
+O painel privado Vozen foi transferido para
+`https://painel.painelpessoal.online/vozen.html`, com entrada pelo portal
+`https://painelpessoal.online/`. Desde 7 de setembro de 2026, o build exclui
+`vozen.html` do artefacto do GitHub Pages: o endereço antigo deixa de servir
+o painel. O código em `site/vozen.html` permanece para histórico e testes;
+as restantes páginas do Pages e o site `vozen.org` não são alterados.
+O teste `tests/retired-pages.test.mjs` impede a republicação acidental.
+
 Cada `push` a `main` que altere `site/**` corre o workflow `pages.yml`, que gera
 `site-dist/` e publica-o no GitHub Pages em
 `https://rexy40407.github.io/painel/`.
